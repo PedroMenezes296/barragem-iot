@@ -1,0 +1,1 @@
+Coloque aqui o CSV exportado do HidroWeb, por exemplo `serie_historica_ana.csv`. Confira a licença e a estrutura das colunas antes da importação.
