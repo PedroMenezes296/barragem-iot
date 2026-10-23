@@ -8,8 +8,8 @@ export class LeiturasController {
   constructor(private readonly leiturasService: LeiturasService) {}
 
   @Post()
-  create(@Body() createLeituraDto: CreateLeituraDto) {
-    return this.leiturasService.create(createLeituraDto);
+  create(@Body() dados : Record<string, unknown>) {
+    return this.leiturasService.create(dados);
   }
 
   @Get()

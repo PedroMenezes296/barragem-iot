@@ -4,9 +4,18 @@ import { UpdateLeituraDto } from './dto/update-leitura.dto.js';
 
 @Injectable()
 export class LeiturasService {
-  create(createLeituraDto: CreateLeituraDto) {
-    return 'This action adds a new leitura';
+
+  private readonly leituras: Record<string, unknown>[] = [];
+
+  create(dados : Record<string, unknown>) {
+    const leitura = {
+      ...dados,
+      recebidoEm: new Date().toISOString(),
+    };
+    
+  this.leituras.push(leitura);
   }
+
 
   findAll() {
     return `This action returns all leituras`;
