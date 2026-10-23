@@ -7,13 +7,20 @@ export class LeiturasService {
 
   private readonly leituras: Record<string, unknown>[] = [];
 
-  create(dados : Record<string, unknown>) {
+ create(dados: Record<string, unknown>) {
     const leitura = {
       ...dados,
       recebidoEm: new Date().toISOString(),
     };
-    
-  this.leituras.push(leitura);
+
+    this.leituras.push(leitura);
+
+    console.log('Nova leitura recebida:', leitura);
+
+    return {
+      mensagem: 'Leitura recebida com sucesso!',
+      leitura,
+    };
   }
 
 
