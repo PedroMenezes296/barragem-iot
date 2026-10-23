@@ -1,34 +1,22 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body } from '@nestjs/common';
 import { LeiturasService } from './leituras.service.js';
-import { CreateLeituraDto } from './dto/create-leitura.dto.js';
-import { UpdateLeituraDto } from './dto/update-leitura.dto.js';
 
 @Controller('leituras')
 export class LeiturasController {
-  constructor(private readonly leiturasService: LeiturasService) {}
 
+  constructor(
+    private readonly leiturasService: LeiturasService,
+  ) {}
+
+  // Recebe os dados enviados pelo Arduino
   @Post()
-  create(@Body() dados : Record<string, unknown>) {
+  create(@Body() dados: Record<string, unknown>) {
     return this.leiturasService.create(dados);
   }
 
+  // Consulta todas as leituras armazenadas
   @Get()
   findAll() {
     return this.leiturasService.findAll();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.leiturasService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateLeituraDto: UpdateLeituraDto) {
-    return this.leiturasService.update(+id, updateLeituraDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.leiturasService.remove(+id);
   }
 }
