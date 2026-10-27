@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Body } from '@nestjs/common';
 import { LeiturasService } from './leituras.service.js';
+import { CreateLeituraDto } from './dto/create-leitura.dto.js';
 
 @Controller('leituras')
 export class LeiturasController {
@@ -10,8 +11,8 @@ export class LeiturasController {
 
   // Recebe os dados enviados pelo Arduino
   @Post()
-  create(@Body() dados: Record<string, unknown>) {
-    return this.leiturasService.create(dados);
+  create(@Body() createLeituraDto: CreateLeituraDto) {
+    return this.leiturasService.create(createLeituraDto);
   }
 
   // Consulta todas as leituras armazenadas

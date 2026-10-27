@@ -1,16 +1,17 @@
 import { Injectable } from '@nestjs/common';
+import { CreateLeituraDto } from './dto/create-leitura.dto.js';
 
 @Injectable()
 export class LeiturasService {
 
   // Armazena as leituras temporariamente em memória
-  private readonly leituras: Record<string, unknown>[] = [];
+  private readonly leituras: CreateLeituraDto[] = [];
 
   // Recebe e armazena uma nova leitura
-  create(dados: Record<string, unknown>) {
+  create(createLeituraDto: CreateLeituraDto) {
 
     const leitura = {
-      ...dados,
+      ...createLeituraDto,
       recebidoEm: new Date().toISOString(),
     };
 
