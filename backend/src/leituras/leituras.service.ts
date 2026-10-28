@@ -1,32 +1,49 @@
+
 import { Injectable } from '@nestjs/common';
+
+import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateLeituraDto } from './dto/create-leitura.dto.js';
 
 @Injectable()
 export class LeiturasService {
 
-  // Armazena as leituras temporariamente em memória
-  private readonly leituras: CreateLeituraDto[] = [];
+  constructor(
+    private readonly prisma: PrismaService,
+  ) {}
 
-  // Recebe e armazena uma nova leitura
-  create(createLeituraDto: CreateLeituraDto) {
+  // Salva uma nova leitura no MongoDB
+  async create(dados: CreateLeituraDto) {
 
-    const leitura = {
-      ...createLeituraDto,
-      recebidoEm: new Date().toISOString(),
-    };
+    const leitura = await this.prisma.leitura.create({
+      data: {
+        versao: dados.versao,
+        idDispositivo: dados.idDispositivo,
+        idLeitura: dados.idLeitura,
+        timestampRtc: dados.timestampRtc,
 
-    this.leituras.push(leitura);
+        distanciaCm: dados.distanciaCm,
+        nivelUltrassonicoCm: dados.nivelUltrassonicoCm,
+        nivelResistivoCm: dados.nivelResistivoCm,
+        umidadePct: dados.umidadePct,
+      },
+    });
 
-    console.log('Nova leitura recebida:', leitura);
+    console.log('Leitura salva no MongoDB:', leitura);
 
     return {
-      mensagem: 'Leitura recebida com sucesso!',
+      mensagem: 'Leitura armazenada com sucesso!',
       leitura,
     };
   }
 
-  // Retorna todas as leituras armazenadas
-  findAll() {
-    return this.leituras;
+  // Consulta as leituras salvas no MongoDB
+  async findAll() {
+
+    return this.prisma.leitura.findMany({
+      orderBy: {
+        recebidoEm: 'desc',
+      },
+    });
+
   }
 }
