@@ -35,7 +35,7 @@ const uint8_t PINO_SENSOR_RESISTIVO = A0;
 // Exemplos do prototipo anterior. Validar medidas antes de ativar o alarme.
 const float ALTURA_RESERVATORIO_CM = 40.0;
 const float LIMITE_CRITICO_CM = 35.0;
-const bool ALTURA_REFERENCIA_VALIDADA = false; // Mudar para true so apos calibrar fisicamente
+const bool ALTURA_REFERENCIA_VALIDADA = true; // Mudar para true so apos calibrar fisicamente
 const bool RELE_ATIVO_EM_HIGH = true; // Confirmar se o modulo do rele e ativo em HIGH ou LOW
 
 // Calibracao do sensor resistivo ainda nao realizada: manter valores invalidos.
@@ -45,13 +45,13 @@ const int RESISTIVO_RAW_NIVEL_MAXIMO_CALIBRADO = -1;
 const float ALTURA_SENSOR_RESISTIVO_CM = 0.0;
 
 byte mac[] = { 0x02, 0x50, 0x49, 0x35, 0x00, 0x01 };
-IPAddress IP_API(192, 168, 1, 100); // ALTERAR para o IP real do computador/servidor NestJS
+IPAddress IP_API(192, 168, 50, 1); // ALTERAR para o IP real do computador/servidor NestJS
 const uint16_t PORTA_API = 3000;
 const char* const ROTA_API = "/leituras";
 
 // Opcional: definir a rede correta antes de ativar o IP fixo.
 const bool USAR_IP_FIXO_SE_DHCP_FALHAR = false;
-IPAddress IP_ARDUINO_FIXO(192, 168, 1, 177);
+IPAddress IP_ARDUINO_FIXO(192, 168, 50, 2);
 IPAddress DNS_REDE(192, 168, 1, 1);
 IPAddress GATEWAY_REDE(192, 168, 1, 1);
 IPAddress MASCARA_REDE(255, 255, 255, 0);
@@ -328,23 +328,27 @@ bool anexarCampoNumero(char* json, size_t capacidade, size_t* usado, const char*
 
 bool montarPayload(char* destino, size_t capacidade) {
   float distancia = 0, umidade = 0, nivelUltrassonico = 0, nivelResistivo = 0;
-  const bool temDistancia = obterDistanciaMedia(&distancia);
-  const bool temNivelUltrassonico = temDistancia && ALTURA_REFERENCIA_VALIDADA && distancia <= ALTURA_RESERVATORIO_CM;
-  if (temNivelUltrassonico) nivelUltrassonico = ALTURA_RESERVATORIO_CM - distancia;
-  const bool temNivelResistivo = obterNivelResistivo(&nivelResistivo);
-  const bool temUmidade = obterUmidade(&umidade);
+  const bool temDistancia =
+    obterDistanciaMedia(&distancia);
 
-  // Contrato V1: pelo menos um campo de medicao deve estar presente.
-  if (!temDistancia && !temNivelUltrassonico && !temNivelResistivo && !temUmidade) {
-    Serial.println(F("Sem medicao valida; payload nao criado."));
-    return false;
-  }
+const bool temNivelUltrassonico =
+    temDistancia &&
+    ALTURA_REFERENCIA_VALIDADA &&
+    distancia <= ALTURA_RESERVATORIO_CM;
 
-  char timestamp[32], timestampCompacto[20];
-  if (!obterTimestampRtc(timestamp, sizeof(timestamp), timestampCompacto, sizeof(timestampCompacto))) {
-    Serial.println(F("RTC indisponivel; nao enviar timestamp inventado."));
-    return false;
-  }
+    if (temNivelUltrassonico) {
+        nivelUltrassonico =
+            ALTURA_RESERVATORIO_CM - distancia;
+    }
+
+    // Continuamos testando sem os outros sensores
+    const bool temNivelResistivo = false;
+    const bool temUmidade = false;
+
+ // SOMENTE PARA TESTE SEM RTC
+// Esta data não representa o horário real da medição.
+  char timestamp[32] = "2026-10-27T00:00:00-03:00";
+  char timestampCompacto[20] = "TESTESEMRTC";
 
   char idLeitura[72];
   gerarIdLeitura(timestampCompacto, idLeitura, sizeof(idLeitura));
@@ -372,33 +376,40 @@ bool montarPayload(char* destino, size_t capacidade) {
 // ---------------- ETHERNET E HTTP ----------------
 bool inicializarEthernet() {
   Serial.println(F("Inicializando Ethernet Shield..."));
-  pinMode(4, OUTPUT);  // desativar CS do leitor SD, se existir
+
+  pinMode(4, OUTPUT);
   digitalWrite(4, HIGH);
-  pinMode(53, OUTPUT); // manter SPI do Mega como mestre
+
+  pinMode(53, OUTPUT);
   digitalWrite(53, HIGH);
-  Ethernet.init(10);   // CS do W5100
 
-  if (Ethernet.begin(mac) != 0) {
-    ethernetPronto = true;
-    Serial.print(F("IP do Arduino: "));
-    Serial.println(Ethernet.localIP());
-    return true;
+  Ethernet.init(10);
+
+  // Configura o IP fixo do Arduino
+  Ethernet.begin(mac, IP_ARDUINO_FIXO);
+
+  if (Ethernet.hardwareStatus() == EthernetNoHardware) {
+    Serial.println(F("Ethernet Shield nao detectado!"));
+    ethernetPronto = false;
+    return false;
   }
 
-  Serial.println(F("DHCP falhou."));
-  if (USAR_IP_FIXO_SE_DHCP_FALHAR) {
-    Ethernet.begin(mac, IP_ARDUINO_FIXO, DNS_REDE, GATEWAY_REDE, MASCARA_REDE);
-    ethernetPronto = true;
-    Serial.print(F("IP fixo do Arduino: "));
-    Serial.println(Ethernet.localIP());
-    return true;
+  if (Ethernet.linkStatus() == LinkOFF) {
+    Serial.println(F("Cabo Ethernet desconectado!"));
+    ethernetPronto = false;
+    return false;
   }
 
-  ethernetPronto = false;
-  Serial.println(F("Configure DHCP ou um IP fixo que corresponda a rede."));
-  return false;
+  ethernetPronto = true;
+
+  Serial.print(F("IP do Arduino: "));
+  Serial.println(Ethernet.localIP());
+
+  Serial.print(F("IP do backend: "));
+  Serial.println(IP_API);
+
+  return true;
 }
-
 int enviarHttpPost(const char* json) {
   if (!ethernetPronto) return -1;
   EthernetClient conexao;
