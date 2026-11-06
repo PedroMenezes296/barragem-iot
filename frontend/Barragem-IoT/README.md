@@ -1,19 +1,37 @@
-# React + Vite
+# HidroLab — frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Dashboard de demonstração do reservatório experimental, implementado com Next.js, React e TypeScript. As páginas de Visão Geral e Histórico usam leituras simuladas; Meteorologia e Alertas permanecem provisórias.
 
-Currently, two official plugins are available:
+## Requisitos
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Node.js 20.9 ou superior
+- npm
 
-## React Compiler
+## Desenvolvimento
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+Na pasta `frontend/Barragem-IoT`:
 
-Note: This will impact Vite dev & build performances.
-You can also try [the experimental native React Compiler support in plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md#rust-react-compiler) by using `compiler: true` in the plugin options instead of using the Babel plugin.
+```bash
+npm install
+npm run dev
+```
 
-## Expanding the Oxlint configuration
+Abra [http://localhost:3001](http://localhost:3001). A API NestJS pode continuar usando a porta 3000.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Scripts
+
+- `npm run dev` — servidor Next.js de desenvolvimento na porta 3001.
+- `npm run build` — build de produção.
+- `npm start` — servidor de produção na porta 3001 (após o build).
+- `npm run lint` — ESLint com as regras do Next.js.
+- `npx tsc --noEmit` — verificação de tipos TypeScript.
+
+## Estrutura
+
+- `src/app/` — rotas App Router: `/`, `/historico`, `/meteorologia` e `/alertas`.
+- `src/components/layout/` — layout compartilhado, navegação, cabeçalho e rodapé.
+- `src/features/` — componentes específicos da Visão Geral e do Histórico.
+- `src/data/` — leituras simuladas e séries de gráficos.
+- `src/types/` — modelos visuais e contrato conceitual da API.
+
+O frontend ainda não realiza chamadas HTTP. A integração futura deve validar o contrato real do backend antes de gerar ou consumir o cliente Orval.
