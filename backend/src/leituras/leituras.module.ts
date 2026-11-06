@@ -1,8 +1,11 @@
 import { Module } from '@nestjs/common';
-import { LeiturasService } from './leituras.service.js';
+
 import { LeiturasController } from './leituras.controller.js';
+import { LeiturasService } from './leituras.service.js';
+import { PrismaModule } from '../prisma/prisma.module.js';
 
 @Module({
+  imports: [PrismaModule],
   controllers: [LeiturasController],
   providers: [LeiturasService],
 })
