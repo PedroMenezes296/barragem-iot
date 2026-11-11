@@ -1,0 +1,5 @@
+'use client';
+import { AppBar, Box, Chip, IconButton, Toolbar, Typography } from '@mui/material';
+import MenuRounded from '@mui/icons-material/MenuRounded';
+import WaterDropOutlined from '@mui/icons-material/WaterDropOutlined';
+export default function Header({ onMenu }: { onMenu: () => void }) { return <AppBar position="sticky" color="transparent" elevation={0} sx={{ borderBottom: 1, borderColor: 'divider', backdropFilter: 'blur(18px)', bgcolor: 'rgba(11,23,40,.82)' }}><Toolbar sx={{ minHeight: '72px !important', px: { xs: 2, md: 4 } }}><IconButton onClick={onMenu} aria-label="Abrir menu" sx={{ display: { md: 'none' }, mr: 1 }}><MenuRounded /></IconButton><Typography variant="body2" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>Projeto Integrador V / <Box component="span" color="text.primary">Monitoramento</Box></Typography><Box sx={{ flex: 1 }} /><Chip size="small" icon={<WaterDropOutlined />} label="Modo demonstração" color="info" variant="outlined" sx={{ borderColor: 'rgba(91,141,239,.35)', color: '#9dbbff' }} /></Toolbar></AppBar>; }
