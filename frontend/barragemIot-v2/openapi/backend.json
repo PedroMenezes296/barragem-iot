@@ -1,0 +1,347 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/": {
+      "get": {
+        "operationId": "AppController_getHello",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Mensagem padrão da aplicação.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string",
+                  "example": "Hello World!"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Consultar a mensagem inicial da aplicação",
+        "tags": [
+          "Aplicação"
+        ]
+      }
+    },
+    "/leituras": {
+      "post": {
+        "description": "Valida o JSON V1 e persiste os campos no MongoDB. Campos desconhecidos são rejeitados. Atualmente os quatro campos de medição são opcionais individualmente, sem exigir ao menos um deles. Não há confirmação idempotente para reenvios duplicados.",
+        "operationId": "LeiturasController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLeituraDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Leitura armazenada com sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateLeituraResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "JSON inválido, campo obrigatório ausente, valor inválido ou propriedade desconhecida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "statusCode",
+                    "message",
+                    "error"
+                  ],
+                  "properties": {
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 400
+                    },
+                    "message": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "example": [
+                        "versao must be equal to 1"
+                      ]
+                    },
+                    "error": {
+                      "type": "string",
+                      "example": "Bad Request"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erro não tratado de persistência/consulta. Duplicidades também não possuem tratamento específico e resultam em erro interno.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "properties": {
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 500
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Internal server error"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Receber e armazenar uma leitura dos sensores",
+        "tags": [
+          "Leituras"
+        ]
+      },
+      "get": {
+        "description": "Retorna as leituras em ordem decrescente de recebidoEm. Não há filtros, parâmetros de consulta ou paginação implementados.",
+        "operationId": "LeiturasController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Lista de leituras, vazia quando não há registros.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LeituraResponseDto"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erro não tratado de persistência/consulta. Duplicidades também não possuem tratamento específico e resultam em erro interno.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "statusCode",
+                    "message"
+                  ],
+                  "properties": {
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 500
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Internal server error"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Consultar todas as leituras armazenadas",
+        "tags": [
+          "Leituras"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "BarragemIoT API",
+    "description": "API de recebimento e consulta de leituras dos sensores de monitoramento de barragens. Documenta o comportamento atualmente implementado.",
+    "version": "1.0.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "schemas": {
+      "CreateLeituraDto": {
+        "type": "object",
+        "properties": {
+          "versao": {
+            "type": "integer",
+            "enum": [
+              1
+            ],
+            "description": "Versão do contrato JSON, atualmente igual a 1.",
+            "example": 1
+          },
+          "idDispositivo": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Identificador estável do Arduino.",
+            "example": "arduino-mega-01"
+          },
+          "idLeitura": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Identificador da medição, preservado em reenvios. A combinação com idDispositivo é única no banco.",
+            "example": "arduino-mega-01-20261022T160000-001"
+          },
+          "timestampRtc": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "(Z|[+-]\\d{2}:\\d{2})$",
+            "description": "Data e hora da medição no RTC em ISO 8601 com fuso obrigatório.",
+            "example": "2026-10-22T16:00:00-03:00"
+          },
+          "distanciaCm": {
+            "type": "number",
+            "minimum": 0,
+            "nullable": true,
+            "description": "Distância do HC-SR04 à superfície da água, em cm. Omitir quando indisponível; o validador atual também aceita null.",
+            "example": 35.7
+          },
+          "nivelUltrassonicoCm": {
+            "type": "number",
+            "minimum": 0,
+            "nullable": true,
+            "description": "Nível da água em cm calculado a partir da referência física calibrada. Omitir sem referência; o validador atual também aceita null.",
+            "example": 14.3
+          },
+          "nivelResistivoCm": {
+            "type": "number",
+            "minimum": 0,
+            "nullable": true,
+            "description": "Nível da água em cm dentro da faixa calibrada do sensor resistivo. Omitir sem calibração; o validador atual também aceita null.",
+            "example": 3.2
+          },
+          "umidadePct": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "nullable": true,
+            "description": "Umidade relativa do ar em porcentagem. Omitir quando indisponível; o validador atual também aceita null.",
+            "example": 65
+          }
+        },
+        "required": [
+          "versao",
+          "idDispositivo",
+          "idLeitura",
+          "timestampRtc"
+        ]
+      },
+      "LeituraResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "ObjectId do MongoDB exposto pelo Prisma como id.",
+            "example": "507f1f77bcf86cd799439011"
+          },
+          "versao": {
+            "type": "integer",
+            "description": "Versão do contrato armazenada.",
+            "example": 1
+          },
+          "idDispositivo": {
+            "type": "string",
+            "description": "Identificador do dispositivo.",
+            "example": "arduino-mega-01"
+          },
+          "idLeitura": {
+            "type": "string",
+            "description": "Identificador da medição.",
+            "example": "arduino-mega-01-20261022T160000-001"
+          },
+          "timestampRtc": {
+            "type": "string",
+            "description": "Horário da medição armazenado como texto ISO 8601 com fuso.",
+            "example": "2026-10-22T16:00:00-03:00"
+          },
+          "distanciaCm": {
+            "type": "number",
+            "nullable": true,
+            "description": "Distância sensor–água em cm; null quando ausente.",
+            "example": 35.7
+          },
+          "nivelUltrassonicoCm": {
+            "type": "number",
+            "nullable": true,
+            "description": "Nível ultrassônico em cm; null quando ausente.",
+            "example": 14.3
+          },
+          "nivelResistivoCm": {
+            "type": "number",
+            "nullable": true,
+            "description": "Nível resistivo em cm; null quando ausente.",
+            "example": 3.2
+          },
+          "umidadePct": {
+            "type": "number",
+            "nullable": true,
+            "description": "Umidade relativa em porcentagem; null quando ausente.",
+            "example": 65
+          },
+          "recebidoEm": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Horário de recebimento gerado pelo banco, serializado em UTC.",
+            "example": "2026-10-22T19:00:01.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "versao",
+          "idDispositivo",
+          "idLeitura",
+          "timestampRtc",
+          "distanciaCm",
+          "nivelUltrassonicoCm",
+          "nivelResistivoCm",
+          "umidadePct",
+          "recebidoEm"
+        ]
+      },
+      "CreateLeituraResponseDto": {
+        "type": "object",
+        "properties": {
+          "mensagem": {
+            "type": "string",
+            "description": "Confirmação de armazenamento.",
+            "example": "Leitura armazenada com sucesso!"
+          },
+          "leitura": {
+            "description": "Leitura persistida no MongoDB.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LeituraResponseDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "mensagem",
+          "leitura"
+        ]
+      }
+    }
+  }
+}

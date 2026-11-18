@@ -1,0 +1,41 @@
+{
+  "name": "barragem-iot",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "api:generate": "npm run api:validate && orval",
+    "api:validate": "node scripts/openapi.mjs",
+    "api:refresh": "node scripts/openapi.mjs --refresh && npm run api:generate",
+    "typecheck": "tsc --noEmit",
+    "test:data": "node --import ./scripts/register-paths.mjs scripts/check-api.mjs",
+    "test:api": "node --import ./scripts/register-paths.mjs scripts/check-api.mjs --live",
+    "test:pages": "node scripts/check-pages.mjs"
+  },
+  "dependencies": {
+    "@emotion/cache": "^11.14.0",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^9.5.0",
+    "@mui/material": "^9.5.0",
+    "@mui/material-nextjs": "^9.5.0",
+    "@mui/x-charts": "^9.17.0",
+    "next": "16.4.6",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "server-only": "0.0.1"
+  },
+  "devDependencies": {
+    "@apidevtools/swagger-parser": "13.1.0",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.6",
+    "orval": "8.48.0",
+    "typescript": "^5"
+  }
+}

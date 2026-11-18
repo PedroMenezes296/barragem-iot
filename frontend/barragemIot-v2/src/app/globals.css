@@ -1,0 +1,4 @@
+html { min-height: 100%; }
+body { min-height: 100vh; margin: 0; }
+* { box-sizing: border-box; }
+::selection { background: rgba(91, 141, 239, .35); }

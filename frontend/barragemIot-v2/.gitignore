@@ -34,3 +34,6 @@ yarn-error.log*
 Thumbs.db
 *.swp
 *.swo
+
+# Evidências locais de validação
+.validation/
