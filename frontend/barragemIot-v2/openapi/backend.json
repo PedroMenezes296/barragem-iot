@@ -169,6 +169,83 @@
           "Leituras"
         ]
       }
+    },
+    "/alertas/configuracao": {
+      "get": {
+        "operationId": "AlertasController_getConfig",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlarmConfigDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Consultar limites persistidos dos alarmes da maquete",
+        "tags": [
+          "Alertas"
+        ]
+      },
+      "put": {
+        "operationId": "AlertasController_update",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAlarmConfigDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlarmConfigDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Limites ou dispositivo inválidos."
+          }
+        },
+        "summary": "Salvar limites; exige seca < atenção < inundação, em cm de água",
+        "tags": [
+          "Alertas"
+        ]
+      }
+    },
+    "/alertas/estado": {
+      "get": {
+        "operationId": "AlertasController_getStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlarmStatusDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Avaliar a última leitura recebida do dispositivo configurado; expira após 30 segundos",
+        "tags": [
+          "Alertas"
+        ]
+      }
     }
   },
   "info": {
@@ -340,6 +417,125 @@
         "required": [
           "mensagem",
           "leitura"
+        ]
+      },
+      "AlarmConfigDto": {
+        "type": "object",
+        "properties": {
+          "idDispositivo": {
+            "type": "string"
+          },
+          "ativo": {
+            "type": "boolean"
+          },
+          "secaCm": {
+            "type": "number",
+            "nullable": true
+          },
+          "atencaoCm": {
+            "type": "number",
+            "nullable": true
+          },
+          "inundacaoCm": {
+            "type": "number",
+            "nullable": true
+          },
+          "atualizadoEm": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "nivelMaximoConfiguravelCm": {
+            "type": "number",
+            "example": 3.75
+          }
+        },
+        "required": [
+          "idDispositivo",
+          "ativo",
+          "secaCm",
+          "atencaoCm",
+          "inundacaoCm",
+          "atualizadoEm",
+          "nivelMaximoConfiguravelCm"
+        ]
+      },
+      "UpdateAlarmConfigDto": {
+        "type": "object",
+        "properties": {
+          "idDispositivo": {
+            "type": "string",
+            "example": "arduino-mega-01"
+          },
+          "ativo": {
+            "type": "boolean",
+            "example": false
+          },
+          "secaCm": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 3.75,
+            "description": "Altura da água; alarme quando nível <= secaCm."
+          },
+          "atencaoCm": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 3.75,
+            "description": "Altura da água; atenção quando nível >= atencaoCm e < inundacaoCm."
+          },
+          "inundacaoCm": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 3.75,
+            "description": "Altura da água; alarme quando nível >= inundacaoCm."
+          }
+        },
+        "required": [
+          "idDispositivo",
+          "ativo",
+          "secaCm",
+          "atencaoCm",
+          "inundacaoCm"
+        ]
+      },
+      "AlarmStatusDto": {
+        "type": "object",
+        "properties": {
+          "estado": {
+            "type": "string",
+            "enum": [
+              "desativado",
+              "sem_dados",
+              "desatualizado",
+              "normal",
+              "seca",
+              "atencao",
+              "inundacao"
+            ]
+          },
+          "alarmeAtivo": {
+            "type": "boolean"
+          },
+          "nivelCm": {
+            "type": "number",
+            "nullable": true
+          },
+          "idLeitura": {
+            "type": "string",
+            "nullable": true
+          },
+          "recebidoEm": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "estado",
+          "alarmeAtivo",
+          "nivelCm",
+          "idLeitura",
+          "recebidoEm"
         ]
       }
     }

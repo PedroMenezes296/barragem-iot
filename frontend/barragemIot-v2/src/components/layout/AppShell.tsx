@@ -4,6 +4,7 @@ import { Box } from "@mui/material";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
 import { useLiveReadings } from "@/hooks/useLiveReadings";
+import ActiveAlarmBanner from "@/components/alerts/ActiveAlarmBanner";
 export default function AppShell({
   children,
   sourceLabel = "Modo demonstração",
@@ -28,6 +29,7 @@ export default function AppShell({
           component="main"
           sx={{ maxWidth: 1600, mx: "auto", p: { xs: 2, sm: 3, lg: 4 } }}
         >
+          <ActiveAlarmBanner />
           {children}
         </Box>
       </Box>

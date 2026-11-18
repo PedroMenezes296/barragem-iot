@@ -20,7 +20,8 @@
     "test:cov": "vitest run --coverage",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
-    "test:realtime": "npm run build && node test/realtime.integration.mjs"
+    "test:realtime": "npm run build && node test/realtime.integration.mjs",
+    "test:alarms": "npm run build && node test/alarms.integration.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

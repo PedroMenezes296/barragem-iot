@@ -6,6 +6,9 @@
  * OpenAPI spec version: 1.0.0
  */
 
+export * from './alarmConfigDto';
+export * from './alarmStatusDto';
+export * from './alarmStatusDtoEstado';
 export * from './createLeituraDto';
 export * from './createLeituraDtoVersao';
 export * from './createLeituraResponseDto';
@@ -13,3 +16,4 @@ export * from './leituraResponseDto';
 export * from './leiturasControllerCreate400';
 export * from './leiturasControllerCreate500';
 export * from './leiturasControllerFindAll500';
+export * from './updateAlarmConfigDto';

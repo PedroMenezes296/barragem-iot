@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --port 3001",
     "build": "next build",
-    "start": "next start",
+    "start": "next start --port 3001",
     "lint": "eslint",
     "api:generate": "npm run api:validate && orval",
     "api:validate": "node scripts/openapi.mjs",
@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "test:data": "node --import ./scripts/register-paths.mjs scripts/check-api.mjs",
     "test:api": "node --import ./scripts/register-paths.mjs scripts/check-api.mjs --live",
-    "test:pages": "node scripts/check-pages.mjs"
+    "test:pages": "node scripts/check-pages.mjs",
+    "test:alarms": "node --import ./scripts/register-paths.mjs scripts/check-alarms.mjs"
   },
   "dependencies": {
     "@emotion/cache": "^11.14.0",

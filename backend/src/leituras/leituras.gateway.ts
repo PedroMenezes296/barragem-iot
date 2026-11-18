@@ -17,6 +17,7 @@ export function isAllowedWebsocketOrigin(origin: string | undefined): boolean {
 
 interface ServerEvents {
   'leitura:criada': (event: Pick<LeituraResponseDto, 'id'>) => void;
+  'alertas:configuracao': () => void;
 }
 
 @WebSocketGateway<Partial<ServerOptions>>({
@@ -37,6 +38,14 @@ export class LeiturasGateway {
     } catch {
       // A leitura já foi persistida; uma falha no aviso não deve pedir reenvio.
       this.logger.error('Falha ao emitir aviso de leitura criada.');
+    }
+  }
+
+  notifyAlarmSettingsChanged(): void {
+    try {
+      this.server?.emit('alertas:configuracao');
+    } catch {
+      this.logger.error('Falha ao emitir atualização dos limites.');
     }
   }
 }

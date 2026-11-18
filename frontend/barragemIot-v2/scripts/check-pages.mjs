@@ -12,6 +12,32 @@ let stubStatus = 200;
 const stub = createServer((request, response) => {
   assert.equal(request.method, "GET");
   response.writeHead(stubStatus, { "Content-Type": "application/json" });
+  if (stubStatus === 200 && request.url === "/alertas/configuracao") {
+    response.end(
+      JSON.stringify({
+        idDispositivo: "arduino-mega-01",
+        ativo: false,
+        secaCm: null,
+        atencaoCm: null,
+        inundacaoCm: null,
+        atualizadoEm: null,
+        nivelMaximoConfiguravelCm: 3.75,
+      }),
+    );
+    return;
+  }
+  if (stubStatus === 200 && request.url === "/alertas/estado") {
+    response.end(
+      JSON.stringify({
+        estado: "desativado",
+        alarmeAtivo: false,
+        nivelCm: null,
+        idLeitura: null,
+        recebidoEm: null,
+      }),
+    );
+    return;
+  }
   response.end(
     JSON.stringify(
       stubStatus === 200
@@ -98,6 +124,10 @@ try {
     const alerts = await page("/alertas");
     await writeFile(".validation/alerts-after.html", alerts);
     assert.ok(alerts.includes("Receba alertas por e-mail"));
+    assert.ok(alerts.includes("Limites dos alarmes"));
+    assert.ok(alerts.includes("Nível mínimo — seca (cm)"));
+    assert.ok(alerts.includes("Nível de atenção (cm)"));
+    assert.ok(alerts.includes("Nível máximo — inundação (cm)"));
     console.log(
       "Produção/mock: três páginas HTTP 200; indicadores, tabela e formulário preservados.",
     );
@@ -105,6 +135,9 @@ try {
   await withFrontend(
     { DATA_SOURCE: "api", API_BASE_URL: stubUrl },
     async (page) => {
+      const alarms = await page("/alertas");
+      assert.ok(alarms.includes("Salvar limites"));
+      assert.ok(alarms.includes("Alarmes desativados"));
       for (const route of ["/", "/historico"]) {
         const html = await page(route);
         assert.ok(!html.includes("LEIT-01842"));

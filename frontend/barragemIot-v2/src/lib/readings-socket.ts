@@ -4,6 +4,7 @@ import type { LeituraResponseDto } from "@/generated/api/models";
 export type LiveConnectionStatus = "connecting" | "connected" | "disconnected";
 interface ServerEvents {
   "leitura:criada": (event: Pick<LeituraResponseDto, "id">) => void;
+  "alertas:configuracao": () => void;
 }
 interface Callbacks {
   onStatus: (status: LiveConnectionStatus) => void;
@@ -38,6 +39,7 @@ export function subscribeToReadings(
   });
   socket.on("disconnect", () => callbacks.onStatus("disconnected"));
   socket.on("connect_error", () => callbacks.onStatus("disconnected"));
+  socket.on("alertas:configuracao", scheduleRefresh);
   socket.on("leitura:criada", (event) => {
     if (event && typeof event.id === "string" && event.id.length > 0)
       scheduleRefresh();

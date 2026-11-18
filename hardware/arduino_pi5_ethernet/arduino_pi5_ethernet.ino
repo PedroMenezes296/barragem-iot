@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 // ---------------- CONFIGURACAO ----------------
 const char* const ID_DISPOSITIVO = "arduino-mega-01";
@@ -32,9 +33,19 @@ const uint8_t PINO_SENSOR_RESISTIVO = A0;
 
 #define TIPO_DHT DHT11 // Trocar para DHT22 se esse for o modelo utilizado
 
-// Exemplos do prototipo anterior. Validar medidas antes de ativar o alarme.
-const float ALTURA_RESERVATORIO_CM = 40.0;
-const float LIMITE_CRITICO_CM = 35.0;
+// Distancia do sensor ao fundo com o reservatorio vazio (referencia de nivel zero).
+const float ALTURA_RESERVATORIO_CM = 5.75f;
+// Limites de seca/atencao/inundacao recebidos da configuracao salva no dashboard.
+const unsigned long INTERVALO_CONFIG_ALARMES_MS = 10000UL;
+const float NIVEL_MAXIMO_CONFIG_ALARME_CM = 3.75f; // 5,75 cm de referencia - 2 cm minimos do HC-SR04
+bool configuracaoAlarmesRecebida = false;
+bool alarmesHabilitados = false;
+float limiteSecaCm = 0;
+float limiteAtencaoCm = 0;
+float limiteInundacaoCm = 0;
+unsigned long ultimaConsultaAlarmesMs = 0;
+bool primeiraConsultaAlarmes = true;
+uint8_t tipoAlarmeNivel = 0; // 0 normal, 1 seca, 2 atencao, 3 inundacao
 const bool ALTURA_REFERENCIA_VALIDADA = true; // Mudar para true so apos calibrar fisicamente
 const bool RELE_ATIVO_EM_HIGH = true; // Confirmar se o modulo do rele e ativo em HIGH ou LOW
 
@@ -139,7 +150,7 @@ void definirAlarme(bool ativo) {
   digitalWrite(PINO_RELE, (ativo == RELE_ATIVO_EM_HIGH) ? HIGH : LOW);
   if (ativo) {
     tone(PINO_BUZZER, 1000);
-    Serial.println(F("ALERTA LOCAL: nivel acima do limite configurado!"));
+    Serial.println(F("ALERTA LOCAL: nivel atingiu um dos limites configurados!"));
   } else {
     noTone(PINO_BUZZER);
     Serial.println(F("Alarme local desativado."));
@@ -203,7 +214,22 @@ void registrarEco(unsigned long duracaoUs) {
   float media;
   if (obterDistanciaMedia(&media) && ALTURA_REFERENCIA_VALIDADA && media <= ALTURA_RESERVATORIO_CM) {
     const float nivel = ALTURA_RESERVATORIO_CM - media;
-    definirAlarme(nivel >= LIMITE_CRITICO_CM);
+    if (configuracaoAlarmesRecebida) {
+      uint8_t estado = 0;
+      if (alarmesHabilitados) {
+        if (nivel <= limiteSecaCm) estado = 1;
+        else if (nivel >= limiteInundacaoCm) estado = 3;
+        else if (nivel >= limiteAtencaoCm) estado = 2;
+      }
+      if (estado != tipoAlarmeNivel) {
+        tipoAlarmeNivel = estado;
+        if (estado == 1) Serial.println(F("Estado do nivel: SECA"));
+        else if (estado == 2) Serial.println(F("Estado do nivel: ATENCAO"));
+        else if (estado == 3) Serial.println(F("Estado do nivel: INUNDACAO"));
+        else Serial.println(F("Estado do nivel: NORMAL"));
+      }
+      definirAlarme(estado != 0);
+    }
   }
 }
 
@@ -410,6 +436,105 @@ bool inicializarEthernet() {
 
   return true;
 }
+// Retorna o inicio de um valor JSON simples. O backend publica chaves unicas e IDs sem escapes.
+const char* valorConfiguracao(const char* json, const char* nome) {
+  char chave[48];
+  snprintf(chave, sizeof(chave), "\"%s\"", nome);
+  const char* valor = strstr(json, chave);
+  if (!valor) return NULL;
+  valor = strchr(valor + strlen(chave), ':');
+  if (!valor) return NULL;
+  ++valor;
+  while (*valor && isspace((unsigned char)*valor)) ++valor;
+  return valor;
+}
+
+bool numeroConfiguracao(const char* json, const char* nome, float* destino) {
+  const char* inicio = valorConfiguracao(json, nome);
+  if (!inicio) return false;
+  char* fim;
+  const double numero = strtod(inicio, &fim);
+  if (fim == inicio || !isfinite(numero)) return false;
+  while (*fim && isspace((unsigned char)*fim)) ++fim;
+  if (*fim != ',' && *fim != '}') return false;
+  *destino = (float)numero;
+  return true;
+}
+
+bool aplicarConfiguracaoAlarmes(const char* json) {
+  const char* dispositivo = valorConfiguracao(json, "idDispositivo");
+  const char* ativo = valorConfiguracao(json, "ativo");
+  if (!dispositivo || !ativo || dispositivo[0] != '"') return false;
+  const char* fimId = strchr(dispositivo + 1, '"');
+  if (!fimId) return false;
+  const bool mesmoDispositivo = (size_t)(fimId - dispositivo - 1) == strlen(ID_DISPOSITIVO) &&
+    strncmp(dispositivo + 1, ID_DISPOSITIVO, strlen(ID_DISPOSITIVO)) == 0;
+  const bool habilitar = strncmp(ativo, "true", 4) == 0;
+  if (!habilitar && strncmp(ativo, "false", 5) != 0) return false;
+  const char* fimAtivo = ativo + (habilitar ? 4 : 5);
+  while (*fimAtivo && isspace((unsigned char)*fimAtivo)) ++fimAtivo;
+  if (*fimAtivo != ',' && *fimAtivo != '}') return false;
+  if (!mesmoDispositivo || !habilitar) {
+    configuracaoAlarmesRecebida = true;
+    alarmesHabilitados = false;
+    definirAlarme(false);
+    return true;
+  }
+  float seca, atencao, inundacao;
+  if (!numeroConfiguracao(json, "secaCm", &seca) || !numeroConfiguracao(json, "atencaoCm", &atencao) ||
+      !numeroConfiguracao(json, "inundacaoCm", &inundacao)) return false;
+  if (!(seca >= 0 && seca < atencao && atencao < inundacao && inundacao <= NIVEL_MAXIMO_CONFIG_ALARME_CM)) return false;
+  limiteSecaCm = seca;
+  limiteAtencaoCm = atencao;
+  limiteInundacaoCm = inundacao;
+  alarmesHabilitados = true;
+  configuracaoAlarmesRecebida = true;
+  Serial.println(F("Limites de seca, atencao e inundacao sincronizados com o dashboard."));
+  // A proxima medicao valida aplica os novos limites.
+  return true;
+}
+
+void atualizarConfiguracaoAlarmes() {
+  if (!ethernetPronto || (!primeiraConsultaAlarmes && millis() - ultimaConsultaAlarmesMs < INTERVALO_CONFIG_ALARMES_MS)) return;
+  primeiraConsultaAlarmes = false;
+  ultimaConsultaAlarmesMs = millis();
+  EthernetClient conexao;
+  if (!conexao.connect(IP_API, PORTA_API)) {
+    Serial.println(F("Configuracao de alarmes indisponivel; mantendo ultima configuracao recebida."));
+    return;
+  }
+  conexao.println(F("GET /alertas/configuracao HTTP/1.0"));
+  conexao.print(F("Host: ")); conexao.println(IP_API);
+  conexao.println(F("Connection: close")); conexao.println();
+  char status[64] = {0};
+  char corpo[640] = {0};
+  size_t posStatus = 0, posCorpo = 0;
+  bool primeiraLinha = true, cabecalhosCompletos = false, excedeu = false;
+  const char finalCabecalho[] = "\r\n\r\n";
+  uint8_t marcador = 0;
+  const unsigned long inicio = millis();
+  while (millis() - inicio < TIMEOUT_HTTP_MS && (conexao.connected() || conexao.available())) {
+    while (conexao.available()) {
+      const char c = (char)conexao.read();
+      if (!cabecalhosCompletos) {
+        if (primeiraLinha) {
+          if (c == '\n') primeiraLinha = false;
+          else if (c != '\r' && posStatus + 1 < sizeof(status)) status[posStatus++] = c;
+        }
+        if (c == finalCabecalho[marcador]) ++marcador;
+        else marcador = c == '\r' ? 1 : 0;
+        if (marcador == 4) cabecalhosCompletos = true;
+      } else if (posCorpo + 1 < sizeof(corpo)) corpo[posCorpo++] = c;
+      else excedeu = true;
+    }
+  }
+  conexao.stop();
+  while (posCorpo > 0 && isspace((unsigned char)corpo[posCorpo - 1])) corpo[--posCorpo] = '\0';
+  const char* codigo = strchr(status, ' ');
+  if (!excedeu && cabecalhosCompletos && codigo && atoi(codigo + 1) == 200 && posCorpo > 0 && corpo[posCorpo - 1] == '}' && aplicarConfiguracaoAlarmes(corpo)) return;
+  Serial.println(F("Configuracao de alarmes invalida/indisponivel; mantendo ultima configuracao recebida."));
+}
+
 int enviarHttpPost(const char* json) {
   if (!ethernetPronto) return -1;
   EthernetClient conexao;
@@ -578,4 +703,5 @@ void loop() {
   atualizarSensorUltrassonico();
   imprimirDiagnostico();
   gerenciarEnvio();
+  atualizarConfiguracaoAlarmes();
 }

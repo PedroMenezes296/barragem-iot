@@ -26,6 +26,8 @@ O percentual é ilustrativo e os alertas não representam avaliação de seguran
 
 ## Atualização automática
 
+A página Alertas também permite configurar os níveis de seca, atenção e inundação. Consulte [uso, persistência e atualização do Arduino](../../docs/alarmes-configuraveis.md). O controle físico exige gravar o firmware atualizado; configurar o painel não atualiza a placa automaticamente.
+
 Em modo API, o navegador mantém uma conexão Socket.IO com o backend. Após uma leitura ser salva, o aviso atualiza os dados pelo Orval sem F5. A reconexão também reconsulta as leituras. Configure `WEBSOCKET_PUBLIC_URL` com a origem pública do backend, sem segredos. No backend, `WS_ALLOWED_ORIGINS` permite as origens do frontend.
 
 O indicador representa a conexão do navegador com o backend; ele não confirma o estado do hardware. Consulte a [documentação do WebSocket](../../docs/websocket.md) para configuração e testes.
