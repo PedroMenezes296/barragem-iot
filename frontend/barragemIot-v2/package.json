@@ -26,7 +26,8 @@
     "next": "16.4.6",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "server-only": "0.0.1"
+    "server-only": "0.0.1",
+    "socket.io-client": "4.8.4"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "13.1.0",

@@ -1,5 +1,7 @@
 # Relatório de refatoração e integração — BarragemIot v2
 
+Este relatório registra a etapa de integração HTTP. A atualização automática implementada posteriormente está documentada em [WebSocket](../../../docs/websocket.md).
+
 ## 1. Base e diagnóstico
 
 O destino é **barragemIot-v2**. Barragem-IoT foi consultado como referência e não recebeu alterações. Na abertura do workspace, a v2 continha somente `.gitignore`, caches e `context/cia.txt`. Com confirmação do usuário, seus fontes foram recuperados do commit `07d7db5` sem substituir arquivos existentes. O contexto foi preservado.

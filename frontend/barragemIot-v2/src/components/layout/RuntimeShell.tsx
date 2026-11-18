@@ -1,5 +1,5 @@
 import { connection } from "next/server";
-import { usesSimulatedReadings } from "@/lib/api-config";
+import { usesSimulatedReadings, getWebsocketPublicUrl } from "@/lib/api-config";
 import AppShell from "./AppShell";
 
 export default async function RuntimeShell({
@@ -10,6 +10,9 @@ export default async function RuntimeShell({
   await connection();
   return (
     <AppShell
+      websocketUrl={
+        usesSimulatedReadings() ? undefined : getWebsocketPublicUrl()
+      }
       sourceLabel={
         usesSimulatedReadings()
           ? "Modo demonstração"

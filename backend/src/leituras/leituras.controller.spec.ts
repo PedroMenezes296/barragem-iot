@@ -8,7 +8,12 @@ describe('LeiturasController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [LeiturasController],
-      providers: [LeiturasService],
+      providers: [
+        {
+          provide: LeiturasService,
+          useValue: { create: vi.fn(), findAll: vi.fn() },
+        },
+      ],
     }).compile();
 
     controller = module.get<LeiturasController>(LeiturasController);

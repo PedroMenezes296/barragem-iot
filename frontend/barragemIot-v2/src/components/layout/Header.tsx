@@ -9,12 +9,15 @@ import {
 } from "@mui/material";
 import MenuRounded from "@mui/icons-material/MenuRounded";
 import WaterDropOutlined from "@mui/icons-material/WaterDropOutlined";
+import type { LiveConnectionStatus } from "@/lib/readings-socket";
 export default function Header({
   onMenu,
   sourceLabel,
+  liveStatus,
 }: {
   onMenu: () => void;
   sourceLabel: string;
+  liveStatus: LiveConnectionStatus | "disabled";
 }) {
   return (
     <AppBar
@@ -50,7 +53,20 @@ export default function Header({
         <Chip
           size="small"
           icon={<WaterDropOutlined />}
-          label={sourceLabel}
+          label={
+            liveStatus === "disabled"
+              ? sourceLabel
+              : liveStatus === "connected"
+                ? "Backend conectado · dados mistos"
+                : liveStatus === "connecting"
+                  ? "Conectando ao backend"
+                  : "Backend desconectado"
+          }
+          title={
+            liveStatus === "disabled"
+              ? sourceLabel
+              : "Conexão do navegador com o backend. Não confirma o estado do hardware. Percentual, previsão e alertas continuam demonstrativos."
+          }
           color="info"
           variant="outlined"
           sx={{ borderColor: "rgba(91,141,239,.35)", color: "#9dbbff" }}

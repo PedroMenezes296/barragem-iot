@@ -130,3 +130,9 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
+## BarragemIoT: atualização por WebSocket
+
+O Gateway Socket.IO publica `leitura:criada` após a persistência de uma leitura. Configure `WS_ALLOWED_ORIGINS` conforme o exemplo `.env.websocket.example`, preservando as demais variáveis existentes. O transporte usa a mesma porta do HTTP.
+
+Execute `npm run test:realtime` para testar o Gateway e o cliente do frontend com armazenamento em memória, sem inserir dados de teste no MongoDB. Consulte [configuração, contrato e validações](../docs/websocket.md).

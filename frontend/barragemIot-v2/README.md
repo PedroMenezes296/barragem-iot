@@ -24,6 +24,12 @@ Os dados reais passam pelo cliente gerado em `src/generated/api`, pelo serviço 
 
 O percentual é ilustrativo e os alertas não representam avaliação de segurança. Não são inferidos estado online, volume, calibração ou regras operacionais a partir de campos ausentes no Swagger.
 
+## Atualização automática
+
+Em modo API, o navegador mantém uma conexão Socket.IO com o backend. Após uma leitura ser salva, o aviso atualiza os dados pelo Orval sem F5. A reconexão também reconsulta as leituras. Configure `WEBSOCKET_PUBLIC_URL` com a origem pública do backend, sem segredos. No backend, `WS_ALLOWED_ORIGINS` permite as origens do frontend.
+
+O indicador representa a conexão do navegador com o backend; ele não confirma o estado do hardware. Consulte a [documentação do WebSocket](../../docs/websocket.md) para configuração e testes.
+
 ## Swagger e Orval
 
 ```bash
