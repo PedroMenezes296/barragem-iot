@@ -9,6 +9,7 @@
 export * from './alarmConfigDto';
 export * from './alarmStatusDto';
 export * from './alarmStatusDtoEstado';
+export * from './alertasControllerGetStatusParams';
 export * from './createLeituraDto';
 export * from './createLeituraDtoVersao';
 export * from './createLeituraResponseDto';

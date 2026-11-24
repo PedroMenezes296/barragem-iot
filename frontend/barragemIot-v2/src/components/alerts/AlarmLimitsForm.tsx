@@ -15,6 +15,7 @@ import DashboardCard from "@/components/ui/DashboardCard";
 
 export interface AlarmLimitsDraft {
   deviceId: string;
+  reference: string;
   dry: string;
   attention: string;
   flood: string;
@@ -36,6 +37,9 @@ export default function AlarmLimitsForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const reference = Number(draft.reference.trim().replace(",", "."));
+  const maximum = Number.isFinite(reference) && reference > 2 && reference <= 400
+    ? Number((reference - 2).toFixed(2)) : null;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -56,7 +60,7 @@ export default function AlarmLimitsForm({
     }
   }
 
-  const change = (field: "dry" | "attention" | "flood", value: string) => {
+  const change = (field: "reference" | "dry" | "attention" | "flood", value: string) => {
     setDraft((current) => ({ ...current, [field]: value }));
     setSaved(false);
     setError("");
@@ -88,6 +92,15 @@ export default function AlarmLimitsForm({
             required
             disabled={disabled || saving}
             helperText="Os limites se aplicam apenas a este dispositivo."
+          />
+          <TextField
+            label="Distância do sensor ao fundo — reservatório vazio (cm)"
+            value={draft.reference}
+            onChange={(event) => change("reference", event.target.value)}
+            slotProps={{ htmlInput: { inputMode: "decimal" } }}
+            required
+            disabled={disabled || saving}
+            helperText="Referência aplicada somente após salvar. Alterações valem para novas leituras."
           />
           <Box
             sx={{
@@ -128,9 +141,10 @@ export default function AlarmLimitsForm({
             />
           </Box>
           <Typography variant="caption" color="text.secondary">
-            Seca &lt; atenção &lt; inundação. Referência sensor–fundo: 5,75 cm.
-            Com a distância mínima de 2 cm aceita pelo firmware, o nível máximo
-            mensurável é 3,75 cm.
+            Seca &lt; atenção &lt; inundação. Distância mínima do sensor: 2 cm.
+            {maximum === null
+              ? " Informe uma referência maior que 2 e até 400 cm."
+              : ` Nível máximo mensurável: ${maximum.toLocaleString("pt-BR")} cm.`}
           </Typography>
           <Stack
             direction={{ xs: "column", sm: "row" }}

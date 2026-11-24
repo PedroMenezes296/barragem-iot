@@ -48,7 +48,8 @@ export class LeituraResponseDto {
   @ApiProperty({
     type: Number,
     nullable: true,
-    description: 'Nível ultrassônico em cm; null quando ausente.',
+    description:
+      'Nível em cm calculado pelo backend (distanciaFundoCm - distanciaCm); null sem referência válida para o dispositivo ou distância mensurável. Zero é válido.',
     example: 14.3,
   })
   nivelUltrassonicoCm!: number | null;

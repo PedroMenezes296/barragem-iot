@@ -10,21 +10,24 @@ export interface UpdateAlarmConfigDto {
   idDispositivo: string;
   ativo: boolean;
   /**
-     * Altura da água; alarme quando nível <= secaCm.
+     * Distância sensor–fundo com reservatório vazio. O máximo mensurável é esta referência menos 2 cm.
+     * @maximum 400
+     * @exclusiveMinimum 2
+     */
+  distanciaFundoCm: number;
+  /**
+     * Altura da água; alarme quando nível <= secaCm. Máximo: distanciaFundoCm - 2.
      * @minimum 0
-     * @maximum 3.75
      */
   secaCm: number;
   /**
-     * Altura da água; atenção quando nível >= atencaoCm e < inundacaoCm.
+     * Altura da água; atenção quando nível >= atencaoCm e < inundacaoCm. Máximo: distanciaFundoCm - 2.
      * @minimum 0
-     * @maximum 3.75
      */
   atencaoCm: number;
   /**
-     * Altura da água; alarme quando nível >= inundacaoCm.
+     * Altura da água; alarme quando nível >= inundacaoCm. Máximo: distanciaFundoCm - 2.
      * @minimum 0
-     * @maximum 3.75
      */
   inundacaoCm: number;
 }

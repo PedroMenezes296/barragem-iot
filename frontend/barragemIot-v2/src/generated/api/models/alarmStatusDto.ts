@@ -8,10 +8,17 @@
 import type { AlarmStatusDtoEstado } from './alarmStatusDtoEstado';
 
 export interface AlarmStatusDto {
+  /** Dispositivo ao qual este comando se aplica. */
+  idDispositivo: string;
   estado: AlarmStatusDtoEstado;
   alarmeAtivo: boolean;
   /** @nullable */
   nivelCm: number | null;
+  /**
+     * Percentual da altura: nivelCm / inundacaoCm * 100, sem limitar a 100%. Não representa volume nem confirmação do alarme físico.
+     * @nullable
+     */
+  percentualNivelPct: number | null;
   /** @nullable */
   idLeitura: string | null;
   /** @nullable */

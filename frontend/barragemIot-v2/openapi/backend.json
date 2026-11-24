@@ -219,7 +219,7 @@
             "description": "Limites ou dispositivo inválidos."
           }
         },
-        "summary": "Salvar limites; exige seca < atenção < inundação, em cm de água",
+        "summary": "Salvar referência e limites; exige seca < atenção < inundação <= distanciaFundoCm - 2",
         "tags": [
           "Alertas"
         ]
@@ -228,7 +228,18 @@
     "/alertas/estado": {
       "get": {
         "operationId": "AlertasController_getStatus",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "idDispositivo",
+            "required": false,
+            "in": "query",
+            "description": "Dispositivo solicitante. Outro dispositivo recebe estado desativado.",
+            "schema": {
+              "example": "arduino-mega-01",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",
@@ -292,14 +303,15 @@
             "type": "number",
             "minimum": 0,
             "nullable": true,
-            "description": "Distância do HC-SR04 à superfície da água, em cm. Omitir quando indisponível; o validador atual também aceita null.",
+            "description": "Distância do HC-SR04 à superfície da água, em cm; entrada do cálculo no backend (referência - distância). Faixa mensurável: 2 a 400 cm e até a referência. Fora dela, nível salvo como null. Omitir quando indisponível; também aceita null.",
             "example": 35.7
           },
           "nivelUltrassonicoCm": {
             "type": "number",
+            "deprecated": true,
             "minimum": 0,
             "nullable": true,
-            "description": "Nível da água em cm calculado a partir da referência física calibrada. Omitir sem referência; o validador atual também aceita null.",
+            "description": "Legado: aceito temporariamente para compatibilidade, mas ignorado. O backend calcula o nível exclusivamente pela distância e referência configurada.",
             "example": 14.3
           },
           "nivelResistivoCm": {
@@ -362,7 +374,7 @@
           "nivelUltrassonicoCm": {
             "type": "number",
             "nullable": true,
-            "description": "Nível ultrassônico em cm; null quando ausente.",
+            "description": "Nível em cm calculado pelo backend (distanciaFundoCm - distanciaCm); null sem referência válida para o dispositivo ou distância mensurável. Zero é válido.",
             "example": 14.3
           },
           "nivelResistivoCm": {
@@ -428,6 +440,10 @@
           "ativo": {
             "type": "boolean"
           },
+          "distanciaFundoCm": {
+            "type": "number",
+            "nullable": true
+          },
           "secaCm": {
             "type": "number",
             "nullable": true
@@ -447,12 +463,15 @@
           },
           "nivelMaximoConfiguravelCm": {
             "type": "number",
-            "example": 3.75
+            "nullable": true,
+            "example": 3.75,
+            "description": "distanciaFundoCm - 2; null sem referência configurada."
           }
         },
         "required": [
           "idDispositivo",
           "ativo",
+          "distanciaFundoCm",
           "secaCm",
           "atencaoCm",
           "inundacaoCm",
@@ -471,28 +490,34 @@
             "type": "boolean",
             "example": false
           },
+          "distanciaFundoCm": {
+            "type": "number",
+            "minimum": 2,
+            "maximum": 400,
+            "exclusiveMinimum": true,
+            "example": 5.75,
+            "description": "Distância sensor–fundo com reservatório vazio. O máximo mensurável é esta referência menos 2 cm."
+          },
           "secaCm": {
             "type": "number",
             "minimum": 0,
-            "maximum": 3.75,
-            "description": "Altura da água; alarme quando nível <= secaCm."
+            "description": "Altura da água; alarme quando nível <= secaCm. Máximo: distanciaFundoCm - 2."
           },
           "atencaoCm": {
             "type": "number",
             "minimum": 0,
-            "maximum": 3.75,
-            "description": "Altura da água; atenção quando nível >= atencaoCm e < inundacaoCm."
+            "description": "Altura da água; atenção quando nível >= atencaoCm e < inundacaoCm. Máximo: distanciaFundoCm - 2."
           },
           "inundacaoCm": {
             "type": "number",
             "minimum": 0,
-            "maximum": 3.75,
-            "description": "Altura da água; alarme quando nível >= inundacaoCm."
+            "description": "Altura da água; alarme quando nível >= inundacaoCm. Máximo: distanciaFundoCm - 2."
           }
         },
         "required": [
           "idDispositivo",
           "ativo",
+          "distanciaFundoCm",
           "secaCm",
           "atencaoCm",
           "inundacaoCm"
@@ -501,6 +526,10 @@
       "AlarmStatusDto": {
         "type": "object",
         "properties": {
+          "idDispositivo": {
+            "type": "string",
+            "description": "Dispositivo ao qual este comando se aplica."
+          },
           "estado": {
             "type": "string",
             "enum": [
@@ -520,6 +549,11 @@
             "type": "number",
             "nullable": true
           },
+          "percentualNivelPct": {
+            "type": "number",
+            "nullable": true,
+            "description": "Percentual da altura: nivelCm / inundacaoCm * 100, sem limitar a 100%. Não representa volume nem confirmação do alarme físico."
+          },
           "idLeitura": {
             "type": "string",
             "nullable": true
@@ -531,9 +565,11 @@
           }
         },
         "required": [
+          "idDispositivo",
           "estado",
           "alarmeAtivo",
           "nivelCm",
+          "percentualNivelPct",
           "idLeitura",
           "recebidoEm"
         ]

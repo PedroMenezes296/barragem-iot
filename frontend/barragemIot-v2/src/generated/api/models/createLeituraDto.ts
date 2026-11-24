@@ -26,13 +26,14 @@ export interface CreateLeituraDto {
      */
   timestampRtc: string;
   /**
-     * Distância do HC-SR04 à superfície da água, em cm. Omitir quando indisponível; o validador atual também aceita null.
+     * Distância do HC-SR04 à superfície da água, em cm; entrada do cálculo no backend (referência - distância). Faixa mensurável: 2 a 400 cm e até a referência. Fora dela, nível salvo como null. Omitir quando indisponível; também aceita null.
      * @minimum 0
      * @nullable
      */
   distanciaCm?: number | null;
   /**
-     * Nível da água em cm calculado a partir da referência física calibrada. Omitir sem referência; o validador atual também aceita null.
+     * Legado: aceito temporariamente para compatibilidade, mas ignorado. O backend calcula o nível exclusivamente pela distância e referência configurada.
+     * @deprecated
      * @minimum 0
      * @nullable
      */

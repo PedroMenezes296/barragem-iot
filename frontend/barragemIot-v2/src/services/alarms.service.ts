@@ -17,7 +17,7 @@ export const getAlarmData = cache(async (): Promise<AlarmPageData> => {
       cache: "no-store",
       signal: AbortSignal.timeout(5000),
     }),
-    alertasControllerGetStatus({
+    alertasControllerGetStatus(undefined, {
       cache: "no-store",
       signal: AbortSignal.timeout(5000),
     }),

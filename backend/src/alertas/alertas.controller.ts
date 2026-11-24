@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Put } from '@nestjs/common';
+import { Body, Controller, Get, Put, Query } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiOkResponse,
@@ -9,6 +9,7 @@ import { AlertasService } from './alertas.service.js';
 import {
   AlarmConfigDto,
   AlarmStatusDto,
+  AlarmStatusQueryDto,
   UpdateAlarmConfigDto,
 } from './alertas.dto.js';
 
@@ -28,7 +29,8 @@ export class AlertasController {
 
   @Put('configuracao')
   @ApiOperation({
-    summary: 'Salvar limites; exige seca < atenção < inundação, em cm de água',
+    summary:
+      'Salvar referência e limites; exige seca < atenção < inundação <= distanciaFundoCm - 2',
   })
   @ApiOkResponse({ type: AlarmConfigDto })
   @ApiBadRequestResponse({ description: 'Limites ou dispositivo inválidos.' })
@@ -42,7 +44,7 @@ export class AlertasController {
       'Avaliar a última leitura recebida do dispositivo configurado; expira após 30 segundos',
   })
   @ApiOkResponse({ type: AlarmStatusDto })
-  getStatus() {
-    return this.service.getStatus();
+  getStatus(@Query() query: AlarmStatusQueryDto) {
+    return this.service.getStatus(query.idDispositivo);
   }
 }

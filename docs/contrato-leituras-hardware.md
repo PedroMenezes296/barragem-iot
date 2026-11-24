@@ -2,7 +2,7 @@
 
 > **Tarefa:** T00.3 — Definir e versionar contrato de leitura  
 > **Estado:** Definições de software acordadas; calibração física pendente  
-> **Atualizado:** 22/10/2026  
+> **Atualizado:** 23/11/2026\
 > **Arquitetura:** Arduino Mega 2560 + Ethernet Shield W5100 → API NestJS → MongoDB  
 > **Escopo:** formato e protocolo das leituras do dispositivo. Não inclui a previsão Open-Meteo, a rede neural ou o frontend.
 
@@ -39,14 +39,13 @@ O endereço `http://192.168.1.100:3000/leituras` é apenas um exemplo; o IP ser�
   "idDispositivo": "arduino-mega-01",
   "idLeitura": "arduino-mega-01-20261022T160000-001",
   "timestampRtc": "2026-10-22T16:00:00-03:00",
-  "distanciaCm": 35.7,
-  "nivelUltrassonicoCm": 14.3,
+  "distanciaCm": 4.0,
   "nivelResistivoCm": 3.2,
   "umidadePct": 65.0
 }
 ```
 
-**Atenção:** os números são fictícios e não expressam calibração concluída. A leitura do sensor resistivo só poderá ser expressa honestamente em centímetros **após calibração no recipiente e na faixa útil do sensor**. Até essa calibração, o firmware deve **omitir** `nivelResistivoCm`, em vez de inventar uma medida em centímetros. O mesmo vale para `nivelUltrassonicoCm` até conhecer a altura de referência.
+**Atenção:** os números são fictícios e não expressam calibração concluída. A leitura do sensor resistivo só poderá ser expressa em centímetros **após calibração no recipiente e na faixa útil do sensor**. Até essa calibração, o firmware deve **omitir** `nivelResistivoCm`. Arduino e NestJS calculam nível ultrassônico e percentual independentemente, com a referência salva na página Alertas e sincronizada para a EEPROM. O firmware envia somente a distância ultrassônica; seus cálculos e sua decisão local do buzzer não entram no payload.
 
 ### 3.2 Campos e validações
 
@@ -56,8 +55,8 @@ O endereço `http://192.168.1.100:3000/leituras` é apenas um exemplo; o IP ser�
 | `idDispositivo` | texto | **Sim** | Configuração | ID estável do equipamento. Ex.: `arduino-mega-01`. |
 | `idLeitura` | texto | **Sim** | Firmware | Identificador único da medição; preservado em tentativas de reenvio. |
 | `timestampRtc` | texto ISO 8601 com fuso | **Sim** | RTC + configuração do fuso | Data/hora **da medição**, não do recebimento. |
-| `distanciaCm` | número | Não* | HC-SR04 | Distância entre o sensor e a superfície da água, em cm; finito e não negativo. |
-| `nivelUltrassonicoCm` | número | Não* | Cálculo a partir do HC-SR04 | Altura da coluna de água em cm, definida em relação à referência física da maquete; finita e não negativa. |
+| `distanciaCm` | número | Não* | HC-SR04 | Distância sensor–água; entrada do cálculo no NestJS. Faixa mensurável de 2 a 400 cm e até a referência configurada. |
+| `nivelUltrassonicoCm` | número | Não (legado) | Backend | No envio, temporariamente aceito e ignorado. Na resposta, calculado pelo NestJS; `null` sem referência ou distância válida. |
 | `nivelResistivoCm` | número | Não* | Sensor resistivo calibrado | Altura estimada da água, em cm, **somente dentro da faixa calibrada** desse sensor; finita e não negativa. |
 | `umidadePct` | número | Não* | DHT | Umidade relativa do ar, de 0 a 100%. |
 
@@ -68,7 +67,7 @@ O endereço `http://192.168.1.100:3000/leituras` é apenas um exemplo; o IP ser�
 ### 3.3 Diferença entre distância e nível
 
 - **Distância ultrassônica:** medida diretamente pelo HC-SR04 desde sua posição até a água (`distanciaCm`).
-- **Nível ultrassônico:** valor calculado a partir de uma altura de referência física, por exemplo `nivelUltrassonicoCm = alturaReferenciaCm - distanciaCm`, quando o sensor estiver orientado verticalmente e o zero de nível estiver definido.
+- **Nível ultrassônico:** Arduino e NestJS calculam `nível = distanciaFundoCm - distanciaCm` independentemente. Apenas o cálculo do NestJS é persistido em `nivelUltrassonicoCm`. A referência vem do JSON do backend e sua cópia na EEPROM permite alarme local sem rede. Ex.: referência 5,75 cm e distância 4 cm resultam em nível 1,75 cm. Distância igual à referência resulta em zero válido. O limite de inundação define 100% da altura; valores acima de 100% não são limitados. Alterar a referência afeta novas leituras; alarmes aguardam novas amostras. Veja [alarmes configuráveis](alarmes-configuraveis.md).
 - **Nível resistivo:** não é medido diretamente em centímetros por esse modelo genérico de trilhas; requer teste e calibração por imersão. A faixa útil costuma ser pequena. A comparação numérica entre os dois níveis só faz sentido se ambos representarem **a mesma referência e unidade**, dentro da faixa que os dois sensores conseguem medir.
 
 **Pendente para a montagem:** determinar `alturaReferenciaCm`, a origem do nível zero, o posicionamento do sensor resistivo e a curva de calibração da leitura analógica para centímetros. A ausência dessa calibração não impede testes com JSON simulado.
@@ -90,7 +89,7 @@ Host: 192.168.1.100:3000
 Content-Type: application/json
 Connection: close
 
-{"versao":1,"idDispositivo":"arduino-mega-01","idLeitura":"arduino-mega-01-20261022T160000-001","timestampRtc":"2026-10-22T16:00:00-03:00","distanciaCm":35.7,"nivelUltrassonicoCm":14.3,"nivelResistivoCm":3.2,"umidadePct":65.0}
+{"versao":1,"idDispositivo":"arduino-mega-01","idLeitura":"arduino-mega-01-20261022T160000-001","timestampRtc":"2026-10-22T16:00:00-03:00","distanciaCm":4.0,"nivelResistivoCm":3.2,"umidadePct":65.0}
 ```
 
 O Arduino deverá incluir `Content-Length` com o tamanho real do corpo JSON. O computador que executa NestJS precisa estar acessível pela rede Ethernet.

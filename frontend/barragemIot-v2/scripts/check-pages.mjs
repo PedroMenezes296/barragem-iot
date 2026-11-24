@@ -17,11 +17,12 @@ const stub = createServer((request, response) => {
       JSON.stringify({
         idDispositivo: "arduino-mega-01",
         ativo: false,
+        distanciaFundoCm: null,
         secaCm: null,
         atencaoCm: null,
         inundacaoCm: null,
         atualizadoEm: null,
-        nivelMaximoConfiguravelCm: 3.75,
+        nivelMaximoConfiguravelCm: null,
       }),
     );
     return;
@@ -29,9 +30,11 @@ const stub = createServer((request, response) => {
   if (stubStatus === 200 && request.url === "/alertas/estado") {
     response.end(
       JSON.stringify({
+        idDispositivo: "arduino-mega-01",
         estado: "desativado",
         alarmeAtivo: false,
         nivelCm: null,
+        percentualNivelPct: null,
         idLeitura: null,
         recebidoEm: null,
       }),
@@ -126,6 +129,8 @@ try {
     assert.ok(alerts.includes("Receba alertas por e-mail"));
     assert.ok(alerts.includes("Limites dos alarmes"));
     assert.ok(alerts.includes("Nível mínimo — seca (cm)"));
+    assert.ok(alerts.includes("Distância do sensor ao fundo — reservatório vazio (cm)"));
+    assert.ok(alerts.includes("Nível máximo mensurável: 3,75 cm."));
     assert.ok(alerts.includes("Nível de atenção (cm)"));
     assert.ok(alerts.includes("Nível máximo — inundação (cm)"));
     console.log(

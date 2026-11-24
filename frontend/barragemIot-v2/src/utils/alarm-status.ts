@@ -18,6 +18,7 @@ export function currentAlarmStatus(
       estado: "desatualizado",
       alarmeAtivo: false,
       nivelCm: null,
+      percentualNivelPct: null,
     };
   return status;
 }

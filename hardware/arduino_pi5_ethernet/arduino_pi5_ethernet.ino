@@ -1,6 +1,6 @@
 /*
  * PI5 - Arduino Mega 2560 + Ethernet Shield W5100
- * Contrato: docs/contrato-leituras.md (V1)
+ * Contrato: docs/contrato-leituras-hardware.md (V1)
  *
  * Bibliotecas externas: Ethernet, DHT sensor library (Adafruit), RTClib (Adafruit).
  * Sem delay() nem pulseIn(): HC-SR04 usa interrupcao externa no ECHO e agenda com micros/millis.
@@ -18,6 +18,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include "local-alarm.h"
 
 // ---------------- CONFIGURACAO ----------------
 const char* const ID_DISPOSITIVO = "arduino-mega-01";
@@ -33,20 +34,7 @@ const uint8_t PINO_SENSOR_RESISTIVO = A0;
 
 #define TIPO_DHT DHT11 // Trocar para DHT22 se esse for o modelo utilizado
 
-// Distancia do sensor ao fundo com o reservatorio vazio (referencia de nivel zero).
-const float ALTURA_RESERVATORIO_CM = 5.75f;
-// Limites de seca/atencao/inundacao recebidos da configuracao salva no dashboard.
-const unsigned long INTERVALO_CONFIG_ALARMES_MS = 10000UL;
-const float NIVEL_MAXIMO_CONFIG_ALARME_CM = 3.75f; // 5,75 cm de referencia - 2 cm minimos do HC-SR04
-bool configuracaoAlarmesRecebida = false;
-bool alarmesHabilitados = false;
-float limiteSecaCm = 0;
-float limiteAtencaoCm = 0;
-float limiteInundacaoCm = 0;
-unsigned long ultimaConsultaAlarmesMs = 0;
-bool primeiraConsultaAlarmes = true;
-uint8_t tipoAlarmeNivel = 0; // 0 normal, 1 seca, 2 atencao, 3 inundacao
-const bool ALTURA_REFERENCIA_VALIDADA = true; // Mudar para true so apos calibrar fisicamente
+// Arduino e NestJS calculam independentemente. O alarme físico é sempre local.
 const bool RELE_ATIVO_EM_HIGH = true; // Confirmar se o modulo do rele e ativo em HIGH ou LOW
 
 // Calibracao do sensor resistivo ainda nao realizada: manter valores invalidos.
@@ -71,6 +59,7 @@ IPAddress MASCARA_REDE(255, 255, 255, 0);
 // para o risco local; eventos de subida rapida podem exigir coleta mais frequente.
 const unsigned long INTERVALO_ENVIO_MS = 5000UL;
 const unsigned long INTERVALO_RETRY_REDE_MS = 30000UL;
+const unsigned long INTERVALO_CONFIG_MS = 10000UL;
 const unsigned long TIMEOUT_HTTP_MS = 3000UL;
 const unsigned long INTERVALO_ULTRASSOM_MS = 120UL; // HC-SR04: evitar disparos muito proximos
 const unsigned long TIMEOUT_ECO_US = 30000UL;
@@ -85,6 +74,18 @@ RTC_DS3231 rtc; // Este codigo pressupoe DS3231; outro RTC exige ajuste de bibli
 bool ethernetPronto = false;
 bool rtcPronto = false;
 bool alarmeAtivo = false;
+LocalAlarm::Config configuracaoLocal = {};
+LocalAlarm::Store<EEPROMClass> armazenamentoAlarmes;
+bool configuracaoLocalValida = false;
+LocalAlarm::Result resultadoLocal = {LocalAlarm::NO_DATA, -1, NAN};
+bool falhaLocal = false;
+unsigned long inicioFalhaMs = 0;
+unsigned long ultimaConsultaConfigMs = 0;
+bool primeiraConsultaConfig = true;
+uint16_t frequenciaBuzzer = 0;
+
+bool obterDistanciaMedia(float* destino);
+void atualizarSensorUltrassonico();
 
 // ---------------- ESTADO DO HC-SR04 ----------------
 enum EstadoUltra { ULTRA_OCIOSO, ULTRA_PULSO_TRIGGER, ULTRA_AGUARDANDO_ECO };
@@ -149,12 +150,41 @@ void definirAlarme(bool ativo) {
 
   digitalWrite(PINO_RELE, (ativo == RELE_ATIVO_EM_HIGH) ? HIGH : LOW);
   if (ativo) {
-    tone(PINO_BUZZER, 1000);
     Serial.println(F("ALERTA LOCAL: nivel atingiu um dos limites configurados!"));
   } else {
-    noTone(PINO_BUZZER);
     Serial.println(F("Alarme local desativado."));
   }
+}
+
+void atualizarAlarmeLocal() {
+  float distancia = NAN;
+  const bool leituraValida = obterDistanciaMedia(&distancia);
+  resultadoLocal = LocalAlarm::evaluate(configuracaoLocal, distancia, leituraValida);
+  const bool falha = !configuracaoLocalValida || resultadoLocal.level < 0;
+  if (falha && !falhaLocal) inicioFalhaMs = millis();
+  if (falha != falhaLocal) {
+    Serial.println(falha ? F("FALHA LOCAL: configuracao ou medicao indisponivel.") : F("Medicao local restabelecida."));
+  }
+  falhaLocal = falha;
+  if (configuracaoLocalValida && !configuracaoLocal.enabled) definirAlarme(false);
+  else if (!falha) definirAlarme(LocalAlarm::alarming(resultadoLocal.state));
+  // Sem leitura válida, preservar um alarme de nível já ativo. Não inventar nível zero.
+  uint16_t frequencia = alarmeAtivo ? 1000 : 0;
+  if (!alarmeAtivo && falha && (!configuracaoLocalValida || configuracaoLocal.enabled)) {
+    const unsigned long fase = (millis() - inicioFalhaMs) % 5000UL;
+    if (fase < 100 || (fase >= 250 && fase < 350)) frequencia = 2000;
+  }
+  if (frequencia != frequenciaBuzzer) {
+    frequenciaBuzzer = frequencia;
+    if (frequencia) tone(PINO_BUZZER, frequencia);
+    else noTone(PINO_BUZZER);
+  }
+}
+
+// Também atendido enquanto HTTP espera bytes: perder a API não congela a aquisição.
+void atenderMonitoramentoLocal() {
+  atualizarSensorUltrassonico();
+  atualizarAlarmeLocal();
 }
 
 // ---------------- RTC E IDS ----------------
@@ -211,26 +241,7 @@ void registrarEco(unsigned long duracaoUs) {
   if (quantidadeDistancias < TAMANHO_FILTRO) quantidadeDistancias++;
   ultimaDistanciaValidaMs = millis();
 
-  float media;
-  if (obterDistanciaMedia(&media) && ALTURA_REFERENCIA_VALIDADA && media <= ALTURA_RESERVATORIO_CM) {
-    const float nivel = ALTURA_RESERVATORIO_CM - media;
-    if (configuracaoAlarmesRecebida) {
-      uint8_t estado = 0;
-      if (alarmesHabilitados) {
-        if (nivel <= limiteSecaCm) estado = 1;
-        else if (nivel >= limiteInundacaoCm) estado = 3;
-        else if (nivel >= limiteAtencaoCm) estado = 2;
-      }
-      if (estado != tipoAlarmeNivel) {
-        tipoAlarmeNivel = estado;
-        if (estado == 1) Serial.println(F("Estado do nivel: SECA"));
-        else if (estado == 2) Serial.println(F("Estado do nivel: ATENCAO"));
-        else if (estado == 3) Serial.println(F("Estado do nivel: INUNDACAO"));
-        else Serial.println(F("Estado do nivel: NORMAL"));
-      }
-      definirAlarme(estado != 0);
-    }
-  }
+
 }
 
 void atualizarSensorUltrassonico() {
@@ -353,19 +364,8 @@ bool anexarCampoNumero(char* json, size_t capacidade, size_t* usado, const char*
 }
 
 bool montarPayload(char* destino, size_t capacidade) {
-  float distancia = 0, umidade = 0, nivelUltrassonico = 0, nivelResistivo = 0;
-  const bool temDistancia =
-    obterDistanciaMedia(&distancia);
-
-const bool temNivelUltrassonico =
-    temDistancia &&
-    ALTURA_REFERENCIA_VALIDADA &&
-    distancia <= ALTURA_RESERVATORIO_CM;
-
-    if (temNivelUltrassonico) {
-        nivelUltrassonico =
-            ALTURA_RESERVATORIO_CM - distancia;
-    }
+  float distancia = 0, umidade = 0, nivelResistivo = 0;
+  const bool temDistancia = obterDistanciaMedia(&distancia);
 
     // Continuamos testando sem os outros sensores
     const bool temNivelResistivo = false;
@@ -389,7 +389,6 @@ const bool temNivelUltrassonico =
   destino[usado] = '\0';
 
   if (temDistancia && !anexarCampoNumero(destino, capacidade, &usado, "distanciaCm", distancia)) return false;
-  if (temNivelUltrassonico && !anexarCampoNumero(destino, capacidade, &usado, "nivelUltrassonicoCm", nivelUltrassonico)) return false;
   if (temNivelResistivo && !anexarCampoNumero(destino, capacidade, &usado, "nivelResistivoCm", nivelResistivo)) return false;
   if (temUmidade && !anexarCampoNumero(destino, capacidade, &usado, "umidadePct", umidade)) return false;
 
@@ -413,6 +412,8 @@ bool inicializarEthernet() {
 
   // Configura o IP fixo do Arduino
   Ethernet.begin(mac, IP_ARDUINO_FIXO);
+  Ethernet.setRetransmissionTimeout(100);
+  Ethernet.setRetransmissionCount(1);
 
   if (Ethernet.hardwareStatus() == EthernetNoHardware) {
     Serial.println(F("Ethernet Shield nao detectado!"));
@@ -449,15 +450,18 @@ const char* valorConfiguracao(const char* json, const char* nome) {
   return valor;
 }
 
-bool numeroConfiguracao(const char* json, const char* nome, float* destino) {
+bool numeroConfiguracao(const char* json, const char* nome, uint16_t* destino) {
   const char* inicio = valorConfiguracao(json, nome);
   if (!inicio) return false;
   char* fim;
   const double numero = strtod(inicio, &fim);
-  if (fim == inicio || !isfinite(numero)) return false;
+  if (fim == inicio || !isfinite(numero) || numero < 0 || numero > 400) return false;
   while (*fim && isspace((unsigned char)*fim)) ++fim;
   if (*fim != ',' && *fim != '}') return false;
-  *destino = (float)numero;
+  const double centesimos = numero * 100.0;
+  const double inteiro = floor(centesimos + 0.5);
+  if (fabs(centesimos - inteiro) > 0.01) return false;
+  *destino = (uint16_t)inteiro;
   return true;
 }
 
@@ -469,42 +473,47 @@ bool aplicarConfiguracaoAlarmes(const char* json) {
   if (!fimId) return false;
   const bool mesmoDispositivo = (size_t)(fimId - dispositivo - 1) == strlen(ID_DISPOSITIVO) &&
     strncmp(dispositivo + 1, ID_DISPOSITIVO, strlen(ID_DISPOSITIVO)) == 0;
+  if (!mesmoDispositivo) return false;
   const bool habilitar = strncmp(ativo, "true", 4) == 0;
   if (!habilitar && strncmp(ativo, "false", 5) != 0) return false;
   const char* fimAtivo = ativo + (habilitar ? 4 : 5);
   while (*fimAtivo && isspace((unsigned char)*fimAtivo)) ++fimAtivo;
   if (*fimAtivo != ',' && *fimAtivo != '}') return false;
-  if (!mesmoDispositivo || !habilitar) {
-    configuracaoAlarmesRecebida = true;
-    alarmesHabilitados = false;
-    definirAlarme(false);
-    return true;
+  LocalAlarm::Config nova = {};
+  nova.enabled = habilitar ? 1 : 0;
+  if (!numeroConfiguracao(json, "distanciaFundoCm", &nova.reference) ||
+      !numeroConfiguracao(json, "secaCm", &nova.dry) ||
+      !numeroConfiguracao(json, "atencaoCm", &nova.attention) ||
+      !numeroConfiguracao(json, "inundacaoCm", &nova.flood) || !LocalAlarm::valid(nova)) return false;
+  if (configuracaoLocalValida && LocalAlarm::equal(nova, configuracaoLocal)) return true;
+  if (!armazenamentoAlarmes.save(EEPROM, ID_DISPOSITIVO, nova)) {
+    Serial.println(F("Falha ao persistir configuracao na EEPROM; mantendo anterior."));
+    return false;
   }
-  float seca, atencao, inundacao;
-  if (!numeroConfiguracao(json, "secaCm", &seca) || !numeroConfiguracao(json, "atencaoCm", &atencao) ||
-      !numeroConfiguracao(json, "inundacaoCm", &inundacao)) return false;
-  if (!(seca >= 0 && seca < atencao && atencao < inundacao && inundacao <= NIVEL_MAXIMO_CONFIG_ALARME_CM)) return false;
-  limiteSecaCm = seca;
-  limiteAtencaoCm = atencao;
-  limiteInundacaoCm = inundacao;
-  alarmesHabilitados = true;
-  configuracaoAlarmesRecebida = true;
-  Serial.println(F("Limites de seca, atencao e inundacao sincronizados com o dashboard."));
-  // A proxima medicao valida aplica os novos limites.
+  if (!configuracaoLocalValida || nova.reference != configuracaoLocal.reference) {
+    quantidadeDistancias = 0; // Aguardar amostras sob a nova referência.
+  }
+  configuracaoLocal = nova;
+  configuracaoLocalValida = true;
+  atualizarAlarmeLocal();
+  Serial.println(F("Configuracao local sincronizada e salva na EEPROM."));
   return true;
 }
 
-void atualizarConfiguracaoAlarmes() {
-  if (!ethernetPronto || (!primeiraConsultaAlarmes && millis() - ultimaConsultaAlarmesMs < INTERVALO_CONFIG_ALARMES_MS)) return;
-  primeiraConsultaAlarmes = false;
-  ultimaConsultaAlarmesMs = millis();
+void sincronizarConfiguracaoAlarmes() {
+  if (!ethernetPronto || estadoUltra != ULTRA_OCIOSO) return;
+  if (!primeiraConsultaConfig && millis() - ultimaConsultaConfigMs < INTERVALO_CONFIG_MS) return;
+  primeiraConsultaConfig = false;
+  ultimaConsultaConfigMs = millis();
   EthernetClient conexao;
+  conexao.setConnectionTimeout(250);
   if (!conexao.connect(IP_API, PORTA_API)) {
-    Serial.println(F("Configuracao de alarmes indisponivel; mantendo ultima configuracao recebida."));
+    conexao.stop();
+    Serial.println(F("Configuracao indisponivel; monitoramento local continua."));
     return;
   }
   conexao.println(F("GET /alertas/configuracao HTTP/1.0"));
-  conexao.print(F("Host: ")); conexao.println(IP_API);
+  conexao.print(F("Host: ")); conexao.print(IP_API); conexao.print(':'); conexao.println(PORTA_API);
   conexao.println(F("Connection: close")); conexao.println();
   char status[64] = {0};
   char corpo[640] = {0};
@@ -514,7 +523,9 @@ void atualizarConfiguracaoAlarmes() {
   uint8_t marcador = 0;
   const unsigned long inicio = millis();
   while (millis() - inicio < TIMEOUT_HTTP_MS && (conexao.connected() || conexao.available())) {
-    while (conexao.available()) {
+    atenderMonitoramentoLocal();
+    // Limitar bytes por passagem também atende a aquisição em respostas contínuas.
+    for (uint8_t lidos = 0; lidos < 32 && conexao.available(); ++lidos) {
       const char c = (char)conexao.read();
       if (!cabecalhosCompletos) {
         if (primeiraLinha) {
@@ -532,12 +543,13 @@ void atualizarConfiguracaoAlarmes() {
   while (posCorpo > 0 && isspace((unsigned char)corpo[posCorpo - 1])) corpo[--posCorpo] = '\0';
   const char* codigo = strchr(status, ' ');
   if (!excedeu && cabecalhosCompletos && codigo && atoi(codigo + 1) == 200 && posCorpo > 0 && corpo[posCorpo - 1] == '}' && aplicarConfiguracaoAlarmes(corpo)) return;
-  Serial.println(F("Configuracao de alarmes invalida/indisponivel; mantendo ultima configuracao recebida."));
+  Serial.println(F("Configuracao invalida/indisponivel; mantendo ultima configuracao valida."));
 }
 
 int enviarHttpPost(const char* json) {
   if (!ethernetPronto) return -1;
   EthernetClient conexao;
+  conexao.setConnectionTimeout(250);
 
   Serial.println(F("Conectando a API NestJS..."));
   if (!conexao.connect(IP_API, PORTA_API)) {
@@ -570,7 +582,8 @@ int enviarHttpPost(const char* json) {
 
   // Capturar primeira linha HTTP; drenar o restante sem guardar corpo, ate timeout/fechamento.
   while ((millis() - inicio) < TIMEOUT_HTTP_MS && (conexao.connected() || conexao.available())) {
-    while (conexao.available()) {
+    atenderMonitoramentoLocal();
+    for (uint8_t lidos = 0; lidos < 32 && conexao.available(); ++lidos) {
       const char c = (char)conexao.read();
       if (linhaStatusCompleta) continue;
       if (c == '\r') continue;
@@ -607,13 +620,12 @@ void gerenciarEnvio() {
       ultimaTentativaHttpMs = 0;
     }
   }
-  if (!envioPendente) return;
-
   if (!ethernetPronto && agora - ultimaTentativaEthernetMs >= INTERVALO_RETRY_REDE_MS) {
+    if (estadoUltra != ULTRA_OCIOSO) return;
     ultimaTentativaEthernetMs = agora;
     inicializarEthernet();
   }
-  if (!ethernetPronto) return;
+  if (!ethernetPronto || !envioPendente || estadoUltra != ULTRA_OCIOSO) return;
 
   if (tentativasPayload > 0 && agora - ultimaTentativaHttpMs < INTERVALO_ENVIO_MS) return;
   ultimaTentativaHttpMs = millis();
@@ -656,7 +668,14 @@ void imprimirDiagnostico() {
 
   Serial.print(F(" | Alarme: "));
   Serial.print(alarmeAtivo ? F("ATIVO") : F("inativo"));
-  if (!ALTURA_REFERENCIA_VALIDADA) Serial.print(F(" | referencia de nivel NAO calibrada"));
+  Serial.print(F(" | Nivel local: "));
+  if (resultadoLocal.level >= 0) {
+    Serial.print(resultadoLocal.level / 100.0f, 2);
+    Serial.print(F(" cm | Percentual local: "));
+    Serial.print(resultadoLocal.percentage, 2);
+    Serial.print(F("%"));
+  } else Serial.print(F("indisponivel"));
+  if (falhaLocal) Serial.print(F(" | FALHA de configuracao/sensor"));
   Serial.println();
 }
 
@@ -688,11 +707,14 @@ void setup() {
   }
 
   inicializarContadorBoot();
+  configuracaoLocalValida = armazenamentoAlarmes.load(EEPROM, ID_DISPOSITIVO, configuracaoLocal);
+  Serial.println(configuracaoLocalValida ? F("Configuracao recuperada da EEPROM.") : F("Sem configuracao valida na EEPROM."));
   attachInterrupt(digitalPinToInterrupt(PINO_ECHO), interrupcaoEco, CHANGE);
+  atualizarAlarmeLocal();
   inicializarEthernet();
 
   Serial.println(F("PI5 iniciado. Contrato JSON V1."));
-  Serial.println(F("Payload V1: RTC, distancia/niveis calibrados e umidade."));
+  Serial.println(F("Payload V1 sem calculos locais. Nivel e percentual calculados independentemente no Arduino e no NestJS."));
   Serial.println(F("Temperatura ambiente nao entra no JSON V1 atual."));
 }
 
@@ -700,8 +722,8 @@ void loop() {
   // Sem delay(): as tarefas sao agendadas com millis()/micros().
   atualizarDht();
   atualizarSensorResistivo();
-  atualizarSensorUltrassonico();
+  atenderMonitoramentoLocal();
   imprimirDiagnostico();
+  sincronizarConfiguracaoAlarmes();
   gerenciarEnvio();
-  atualizarConfiguracaoAlarmes();
 }

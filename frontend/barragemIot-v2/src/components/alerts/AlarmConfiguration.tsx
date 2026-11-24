@@ -25,8 +25,10 @@ export default function AlarmConfiguration() {
         </Alert>
       )}
       <AlarmLimitsForm
+        key={config?.atualizadoEm ?? "unconfigured"}
         initialValues={{
           deviceId: config?.idDispositivo ?? "arduino-mega-01",
+          reference: config?.distanciaFundoCm?.toString() ?? "5,75",
           dry: config?.secaCm?.toString() ?? "",
           attention: config?.atencaoCm?.toString() ?? "",
           flood: config?.inundacaoCm?.toString() ?? "",
@@ -34,10 +36,7 @@ export default function AlarmConfiguration() {
         }}
         disabled={unavailable}
         onSave={async (draft) => {
-          const input = parseAlarmDraft(
-            draft,
-            config?.nivelMaximoConfiguravelCm ?? 3.75,
-          );
+          const input = parseAlarmDraft(draft);
           const result = await saveAlarmLimits(input);
           if (!result.ok) throw new Error(result.message);
           router.refresh();
@@ -78,10 +77,11 @@ export default function AlarmConfiguration() {
             />
           </Stack>
           <Typography variant="body2" color="text.secondary">
-            Os limites salvos são compartilhados com o Arduino. Após carregar o
-            firmware atualizado, ele consultará a configuração a cada 10
-            segundos para acionar o buzzer/relé. O estado acima representa a
-            avaliação das leituras recebidas; não confirma o acionamento físico.
+            O NestJS calcula o nível e avalia as leituras recebidas. Após carregar
+            o firmware atualizado, o Arduino também calcula localmente e controla
+            o buzzer/relé, mesmo sem conexão, usando os últimos limites salvos na
+            EEPROM. Ele consulta a configuração a cada 10 segundos quando houver
+            conexão. O estado acima não confirma o acionamento físico.
           </Typography>
           <Typography variant="caption" color="text.secondary">
             Leituras ausentes, inválidas ou recebidas há mais de 30 segundos não

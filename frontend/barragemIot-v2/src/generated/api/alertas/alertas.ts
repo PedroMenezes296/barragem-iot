@@ -8,6 +8,7 @@
 import type {
   AlarmConfigDto,
   AlarmStatusDto,
+  AlertasControllerGetStatusParams,
   UpdateAlarmConfigDto
 } from '../models';
 
@@ -106,7 +107,7 @@ export const getAlertasControllerUpdateUrl = () => {
 }
 
 /**
- * @summary Salvar limites; exige seca < atenção < inundação, em cm de água
+ * @summary Salvar referência e limites; exige seca < atenção < inundação <= distanciaFundoCm - 2
  */
 export const alertasControllerUpdate = async (updateAlarmConfigDto: UpdateAlarmConfigDto, options?: RequestInit): Promise<alertasControllerUpdateResponse> => {
 
@@ -139,20 +140,27 @@ export type alertasControllerGetStatusResponseSuccess = (alertasControllerGetSta
 
 export type alertasControllerGetStatusResponse = (alertasControllerGetStatusResponseSuccess)
 
-export const getAlertasControllerGetStatusUrl = () => {
+export const getAlertasControllerGetStatusUrl = (params?: AlertasControllerGetStatusParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `${getApiBaseUrl()}/alertas/estado`
+  return stringifiedParams.length > 0 ? `${getApiBaseUrl()}/alertas/estado?${stringifiedParams}` : `${getApiBaseUrl()}/alertas/estado`
 }
 
 /**
  * @summary Avaliar a última leitura recebida do dispositivo configurado; expira após 30 segundos
  */
-export const alertasControllerGetStatus = async ( options?: RequestInit): Promise<alertasControllerGetStatusResponse> => {
+export const alertasControllerGetStatus = async (params?: AlertasControllerGetStatusParams, options?: RequestInit): Promise<alertasControllerGetStatusResponse> => {
 
-  const res = await fetch(getAlertasControllerGetStatusUrl(),
+  const res = await fetch(getAlertasControllerGetStatusUrl(params),
   {
     ...options,
     method: 'GET'

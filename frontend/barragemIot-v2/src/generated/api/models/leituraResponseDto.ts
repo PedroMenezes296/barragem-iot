@@ -23,7 +23,7 @@ export interface LeituraResponseDto {
      */
   distanciaCm: number | null;
   /**
-     * Nível ultrassônico em cm; null quando ausente.
+     * Nível em cm calculado pelo backend (distanciaFundoCm - distanciaCm); null sem referência válida para o dispositivo ou distância mensurável. Zero é válido.
      * @nullable
      */
   nivelUltrassonicoCm: number | null;

@@ -8,5 +8,6 @@ import { AlertasController } from './alertas.controller.js';
   imports: [PrismaModule, LeiturasRealtimeModule],
   providers: [AlertasService],
   controllers: [AlertasController],
+  exports: [AlertasService],
 })
 export class AlertasModule {}

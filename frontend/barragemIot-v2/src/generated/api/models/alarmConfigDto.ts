@@ -10,6 +10,8 @@ export interface AlarmConfigDto {
   idDispositivo: string;
   ativo: boolean;
   /** @nullable */
+  distanciaFundoCm: number | null;
+  /** @nullable */
   secaCm: number | null;
   /** @nullable */
   atencaoCm: number | null;
@@ -17,5 +19,9 @@ export interface AlarmConfigDto {
   inundacaoCm: number | null;
   /** @nullable */
   atualizadoEm: string | null;
-  nivelMaximoConfiguravelCm: number;
+  /**
+     * distanciaFundoCm - 2; null sem referência configurada.
+     * @nullable
+     */
+  nivelMaximoConfiguravelCm: number | null;
 }
