@@ -6,7 +6,6 @@ export default async function HomePage() {
   return (
     <OverviewDashboard
       {...data}
-      forecast={dashboardService.getForecast()}
       devices={dashboardService.getDevices()}
       reservoirDemoPct={dashboardService.getReservoirDemoPct()}
     />

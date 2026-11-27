@@ -107,7 +107,7 @@ export const getAlertasControllerUpdateUrl = () => {
 }
 
 /**
- * @summary Salvar referência e limites; exige seca < atenção < inundação <= distanciaFundoCm - 2
+ * @summary Salvar calibração de 100% e limites percentuais; exige 0 <= seca < atenção < inundação <= 100%
  */
 export const alertasControllerUpdate = async (updateAlarmConfigDto: UpdateAlarmConfigDto, options?: RequestInit): Promise<alertasControllerUpdateResponse> => {
 

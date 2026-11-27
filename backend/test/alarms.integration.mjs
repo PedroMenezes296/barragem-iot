@@ -27,7 +27,9 @@ async function application() {
     .overrideProvider(PrismaService)
     .useValue({
       leitura: {
-        findFirst: async ({ where }) => rows.findLast((row) => row.idDispositivo === where.idDispositivo) ?? null,
+        findFirst: async ({ where }) =>
+          rows.findLast((row) => row.idDispositivo === where.idDispositivo) ??
+          null,
         findMany: async () => [...rows].reverse(),
         create: async ({ data }) => {
           latest = { ...data, id: `test-${rows.length}` };
@@ -72,9 +74,10 @@ try {
     idDispositivo: 'test-device',
     ativo: true,
     distanciaFundoCm: 5.75,
-    secaCm: 0.5,
-    atencaoCm: 2.5,
-    inundacaoCm: 3.5,
+    alturaCheioCm: 3.5,
+    secaPct: 20,
+    atencaoPct: 80,
+    inundacaoPct: 95,
   };
   const put = (data) =>
     fetch(`${url}/alertas/configuracao`, {
@@ -102,8 +105,8 @@ try {
     (await post(4, { nivelUltrassonicoCm: 99 })).nivelUltrassonicoCm,
     null,
   );
-  assert.equal((await put({ ...input, atencaoCm: 3.5 })).status, 400);
-  assert.equal((await put({ ...input, inundacaoCm: 3.76 })).status, 400);
+  assert.equal((await put({ ...input, atencaoPct: 95 })).status, 400);
+  assert.equal((await put({ ...input, alturaCheioCm: 3.76 })).status, 400);
   assert.equal((await put({ ...input, unknown: true })).status, 400);
   assert.equal((await put({ ...input, distanciaFundoCm: 2 })).status, 400);
   assert.equal((await put({ ...input, distanciaFundoCm: 401 })).status, 400);
@@ -112,9 +115,19 @@ try {
     400,
   );
   assert.equal(notifications, 0);
-  const response = await put(input);
+  const {
+    secaPct: _dry,
+    atencaoPct: _attention,
+    inundacaoPct: _flood,
+    ...defaultInput
+  } = input;
+  const response = await put(defaultInput);
   assert.equal(response.status, 200);
   config = await response.json();
+  assert.equal(config.versao, 2);
+  assert.equal(config.secaPct, 20);
+  assert.equal(config.atencaoPct, 80);
+  assert.equal(config.inundacaoPct, 95);
   await new Promise((resolve) => setTimeout(resolve, 100));
   assert.equal(notifications, 1);
   assert.equal(
@@ -126,21 +139,35 @@ try {
     [0.5, 'seca'],
     [1, 'normal'],
     [1.75, 'normal'],
-    [2.5, 'atencao'],
+    [2.5, 'normal'],
+    [2.8, 'atencao'],
+    [3.33, 'inundacao'],
     [3.5, 'inundacao'],
     [3.75, 'inundacao'],
   ]) {
     const created = new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('Timeout leitura:criada')), 5000);
-      socket.once('leitura:criada', (event) => { clearTimeout(timer); resolve(event); });
+      const timer = setTimeout(
+        () => reject(new Error('Timeout leitura:criada')),
+        5000,
+      );
+      socket.once('leitura:criada', (event) => {
+        clearTimeout(timer);
+        resolve(event);
+      });
     });
     const saved = await post(5.75 - level, { nivelUltrassonicoCm: 99 });
     assert.deepEqual(await created, { id: saved.id });
     assert.equal(saved.nivelUltrassonicoCm, level);
-    assert.equal((await (await fetch(`${url}/leituras`)).json())[0].nivelUltrassonicoCm, level);
+    assert.equal(
+      (await (await fetch(`${url}/leituras`)).json())[0].nivelUltrassonicoCm,
+      level,
+    );
     const status = await (await fetch(`${url}/alertas/estado`)).json();
     assert.equal(status.estado, state);
-    assert.equal(status.percentualNivelPct, Number((level / input.inundacaoCm * 100).toFixed(2)));
+    assert.equal(
+      status.percentualNivelPct,
+      Number(((level / input.alturaCheioCm) * 100).toFixed(2)),
+    );
     assert.equal(status.alarmeAtivo, state !== 'normal');
   }
   for (const distance of [undefined, null, 0, 1.99, 5.76, 401]) {
@@ -164,7 +191,8 @@ try {
   );
   const oldRow = latest;
   assert.equal(
-    (await put({ ...input, distanciaFundoCm: 10.2, inundacaoCm: 8.2 })).status,
+    (await put({ ...input, distanciaFundoCm: 10.2, alturaCheioCm: 8.2 }))
+      .status,
     200,
   );
   config = await (await fetch(`${url}/alertas/configuracao`)).json();
@@ -186,7 +214,7 @@ try {
     (await (await fetch(`${url}/alertas/estado`)).json()).estado,
     'sem_dados',
   );
-  assert.equal((await post(4)).nivelUltrassonicoCm, 6.2);
+  assert.equal((await post(3.2)).nivelUltrassonicoCm, 7);
   assert.equal(
     (await (await fetch(`${url}/alertas/estado`)).json()).estado,
     'atencao',
@@ -214,11 +242,15 @@ try {
   );
   assert.equal((await put({ ...input, ativo: false })).status, 200);
   assert.equal((await post(4)).nivelUltrassonicoCm, 1.75);
-  assert.equal((await post(4, { idDispositivo: 'another-device' })).nivelUltrassonicoCm, null);
   assert.equal(
-    (await (await fetch(`${url}/alertas/estado`)).json()).alarmeAtivo,
-    false,
+    (await post(4, { idDispositivo: 'another-device' })).nivelUltrassonicoCm,
+    null,
   );
+  const disabledStatus = await (await fetch(`${url}/alertas/estado`)).json();
+  assert.equal(disabledStatus.alarmeAtivo, false);
+  assert.equal(disabledStatus.estado, 'desativado');
+  assert.equal(disabledStatus.nivelCm, 1.75);
+  assert.equal(disabledStatus.percentualNivelPct, 50);
   console.log(
     'Alarmes HTTP/WebSocket: cálculo no backend, legado ignorado, zero/nulos/faixa, limites exatos, dispositivo, troca de referência, histórico, expiração, desativação e persistência após reinício: OK. Nenhuma gravação no MongoDB.',
   );

@@ -1,6 +1,6 @@
 # BarragemIot
 
-Dashboard responsivo com Next.js App Router, React, TypeScript, Material UI e MUI X Charts. Leituras vêm da API por padrão; percentual, previsão e alertas continuam demonstrativos.
+Dashboard responsivo com Next.js App Router, React, TypeScript, Material UI e MUI X Charts. Leituras, percentual calibrado e alarmes de nível vêm da API por padrão; previsão e lista de eventos continuam demonstrativas.
 
 ## Executar localmente
 
@@ -16,13 +16,13 @@ Use Node.js 24 (ambiente validado). No PowerShell, copie o exemplo com `Copy-Ite
 
 ## Páginas
 
-- `/` — visão geral com níveis e umidade da API, percentual ilustrativo e chuva simulada.
+- `/` — visão geral com níveis, umidade e percentual calibrado da API e chuva simulada.
 - `/historico` — leituras da API com filtro de período e paginação locais.
-- `/alertas` — eventos simulados e formulário de inscrição demonstrativo.
+- `/alertas` — configuração e monitoramento dos alarmes reais, eventos simulados e formulário de inscrição demonstrativo.
 
 Os dados reais passam pelo cliente gerado em `src/generated/api`, pelo serviço de leituras e pelo adaptador de apresentação em `src/services`. Os mocks ficam em `src/mocks`, acessados pelo serviço demonstrativo. Falhas da API geram estado de erro, sem troca automática por mocks. Não há envio ou persistência de e-mails.
 
-O percentual é ilustrativo e os alertas não representam avaliação de segurança. Não são inferidos estado online, volume, calibração ou regras operacionais a partir de campos ausentes no Swagger.
+O percentual representa a altura da água em relação à altura de 100% informada no formulário, sem conversão para volume. Os limites padrão são seca até 20%, atenção de 80% até abaixo de 95% e inundação a partir de 95%. Configurações antigas em centímetros podem ser convertidas após informar a altura de 100%. No modo demonstração, o indicador permanece fictício e identificado. Os alertas da maquete não representam avaliação de segurança de uma barragem real.
 
 ## Atualização automática
 

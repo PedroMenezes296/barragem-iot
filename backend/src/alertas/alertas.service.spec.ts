@@ -17,9 +17,10 @@ describe('Alarm limits', () => {
     idDispositivo: 'test-device',
     ativo: true,
     distanciaFundoCm: 5.75,
-    secaCm: 0.5,
-    atencaoCm: 2.5,
-    inundacaoCm: 3.5,
+    alturaCheioCm: 3.5,
+    secaPct: 20,
+    atencaoPct: 80,
+    inundacaoPct: 95,
   };
   const makeService = () =>
     new AlertasService(
@@ -58,7 +59,7 @@ describe('Alarm limits', () => {
     const result = await service.update(input);
     expect(
       JSON.parse(await readFile(join(directory, 'config.json'), 'utf8')).config,
-    ).toEqual(input);
+    ).toEqual({ ...input, versao: 2 });
     const restarted = makeService();
     await restarted.onModuleInit();
     expect(restarted.getConfig()).toEqual(result);
@@ -66,12 +67,12 @@ describe('Alarm limits', () => {
   });
 
   it.each([
-    { secaCm: -1 },
-    { inundacaoCm: 3.76 },
-    { atencaoCm: 3.5 },
-    { secaCm: 3 },
-    { atencaoCm: NaN },
-    { inundacaoCm: Infinity },
+    { secaPct: -1 },
+    { alturaCheioCm: 3.76 },
+    { atencaoPct: 95 },
+    { secaPct: 90 },
+    { atencaoPct: NaN },
+    { inundacaoPct: Infinity },
     { idDispositivo: '' },
     { distanciaFundoCm: 2 },
     { distanciaFundoCm: 400.01 },
@@ -84,12 +85,12 @@ describe('Alarm limits', () => {
     const config = await makeService().update(input);
     for (const [level, expected] of [
       [0, 'seca'],
-      [0.5, 'seca'],
-      [0.51, 'normal'],
-      [2.49, 'normal'],
-      [2.5, 'atencao'],
-      [3.49, 'atencao'],
-      [3.5, 'inundacao'],
+      [0.7, 'seca'],
+      [0.71, 'normal'],
+      [2.79, 'normal'],
+      [2.8, 'atencao'],
+      [3.32, 'atencao'],
+      [3.33, 'inundacao'],
       [3.75, 'inundacao'],
     ] as const) {
       expect(classifyLevel(level, config)).toBe(expected);
@@ -138,7 +139,13 @@ describe('Alarm limits', () => {
   });
 
   it('loads legacy configuration disabled until a reference is explicitly saved', async () => {
-    const { distanciaFundoCm: _reference, ...legacy } = input;
+    const legacy = {
+      idDispositivo: input.idDispositivo,
+      ativo: true,
+      secaCm: 0.5,
+      atencaoCm: 2.5,
+      inundacaoCm: 3.5,
+    };
     await writeFile(
       join(directory, 'config.json'),
       JSON.stringify({
@@ -195,9 +202,26 @@ describe('Alarm limits', () => {
       });
     });
     expect((await restarted.getStatus()).estado).toBe('inundacao');
-    await restarted.update({ ...input, distanciaFundoCm: 10, inundacaoCm: 7 });
+    await restarted.update({
+      ...input,
+      distanciaFundoCm: 10,
+      alturaCheioCm: 7,
+    });
+    expect((await restarted.getStatus()).estado).toBe('sem_dados');
+    await restarted.withConfiguration(async (_config, recebidoEm) => {
+      findFirst.mockResolvedValue({
+        idLeitura: 'full-reference',
+        recebidoEm,
+        nivelUltrassonicoCm: 6,
+      });
+    });
     expect((await restarted.getStatus()).estado).toBe('atencao');
-    await restarted.update({ ...input, distanciaFundoCm: 10, ativo: false });
+    await restarted.update({
+      ...input,
+      distanciaFundoCm: 10,
+      alturaCheioCm: 7,
+      ativo: false,
+    });
     expect((await restarted.getStatus()).estado).toBe('desativado');
   });
 
@@ -230,6 +254,85 @@ describe('Alarm limits', () => {
     ).rejects.toThrow('write failed');
     await expect(service.update(input)).resolves.toMatchObject({
       distanciaFundoCm: 5.75,
+    });
+  });
+
+  it('preserves legacy cm alarms until conversion and keeps an original backup', async () => {
+    const old = {
+      idDispositivo: input.idDispositivo,
+      ativo: true,
+      distanciaFundoCm: 5.75,
+      secaCm: 0.5,
+      atencaoCm: 2.5,
+      inundacaoCm: 3.5,
+    };
+    const raw = JSON.stringify({
+      config: old,
+      atualizadoEm: new Date(Date.now() - 1000).toISOString(),
+    });
+    await writeFile(join(directory, 'config.json'), raw);
+    const service = makeService();
+    await service.onModuleInit();
+    expect(service.getConfig()).toMatchObject({
+      versao: 1,
+      alturaCheioCm: null,
+      ativo: true,
+    });
+    findFirst.mockResolvedValue({
+      idLeitura: 'legacy',
+      recebidoEm: new Date(),
+      nivelUltrassonicoCm: 2.5,
+    });
+    expect(await service.getStatus()).toMatchObject({
+      estado: 'atencao',
+      percentualNivelPct: null,
+    });
+    const converted = {
+      ...input,
+      secaPct: 14.29,
+      atencaoPct: 71.43,
+      inundacaoPct: 100,
+    };
+    expect(await service.update(converted)).toMatchObject({
+      versao: 2,
+      ...converted,
+    });
+    expect(await readFile(join(directory, 'config.json.v1.json'), 'utf8')).toBe(
+      raw,
+    );
+    expect((await service.getStatus()).estado).toBe('sem_dados');
+    const restarted = makeService();
+    await restarted.onModuleInit();
+    expect(restarted.getConfig()).toEqual(service.getConfig());
+  });
+
+  it('starts with 20/80/95 defaults and calculates percentage with alarms disabled', async () => {
+    const service = makeService();
+    expect(service.getConfig()).toMatchObject({
+      versao: 2,
+      alturaCheioCm: null,
+      secaPct: 20,
+      atencaoPct: 80,
+      inundacaoPct: 95,
+    });
+    await service.update({ ...input, ativo: false });
+    await service.withConfiguration(async (_config, recebidoEm) => {
+      findFirst.mockResolvedValue({
+        idLeitura: 'disabled',
+        recebidoEm,
+        nivelUltrassonicoCm: 2.8,
+      });
+    });
+    expect(await service.getStatus()).toMatchObject({
+      estado: 'desativado',
+      alarmeAtivo: false,
+      nivelCm: 2.8,
+      percentualNivelPct: 80,
+    });
+    await service.update({ ...input, ativo: true, inundacaoPct: 96 });
+    expect(await service.getStatus()).toMatchObject({
+      estado: 'atencao',
+      percentualNivelPct: 80,
     });
   });
 });

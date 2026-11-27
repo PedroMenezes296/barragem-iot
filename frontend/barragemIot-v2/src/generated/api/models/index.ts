@@ -7,12 +7,15 @@
  */
 
 export * from './alarmConfigDto';
+export * from './alarmConfigDtoVersao';
 export * from './alarmStatusDto';
 export * from './alarmStatusDtoEstado';
 export * from './alertasControllerGetStatusParams';
 export * from './createLeituraDto';
 export * from './createLeituraDtoVersao';
 export * from './createLeituraResponseDto';
+export * from './forecastDayDto';
+export * from './forecastResponseDto';
 export * from './leituraResponseDto';
 export * from './leiturasControllerCreate400';
 export * from './leiturasControllerCreate500';

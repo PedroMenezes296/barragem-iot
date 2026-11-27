@@ -4,13 +4,7 @@ export function currentAlarmStatus(
   status: AlarmStatusDto | null,
   now: number,
 ): AlarmStatusDto | null {
-  if (
-    !status ||
-    !status.recebidoEm ||
-    status.estado === "desativado" ||
-    now === 0
-  )
-    return status;
+  if (!status || !status.recebidoEm || now === 0) return status;
   const age = now - Date.parse(status.recebidoEm);
   if (!Number.isFinite(age) || age > 30_000 || age < -5000)
     return {

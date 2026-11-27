@@ -30,7 +30,7 @@ export class AlertasController {
   @Put('configuracao')
   @ApiOperation({
     summary:
-      'Salvar referência e limites; exige seca < atenção < inundação <= distanciaFundoCm - 2',
+      'Salvar calibração de 100% e limites percentuais; exige 0 <= seca < atenção < inundação <= 100%',
   })
   @ApiOkResponse({ type: AlarmConfigDto })
   @ApiBadRequestResponse({ description: 'Limites ou dispositivo inválidos.' })

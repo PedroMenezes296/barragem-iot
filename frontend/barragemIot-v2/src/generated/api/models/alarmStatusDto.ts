@@ -15,7 +15,7 @@ export interface AlarmStatusDto {
   /** @nullable */
   nivelCm: number | null;
   /**
-     * Percentual da altura: nivelCm / inundacaoCm * 100, sem limitar a 100%. Não representa volume nem confirmação do alarme físico.
+     * Percentual da altura: nivelCm / alturaCheioCm * 100, sem limitar a 100%. Disponível mesmo com alarmes desativados; null sem calibração ou leitura válida. Não representa volume nem confirmação do alarme físico.
      * @nullable
      */
   percentualNivelPct: number | null;

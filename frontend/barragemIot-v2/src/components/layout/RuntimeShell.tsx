@@ -20,7 +20,7 @@ export default async function RuntimeShell({
         sourceLabel={
           usesSimulatedReadings()
             ? "Modo demonstração"
-            : "Leituras API · demonstrações locais"
+            : "Leituras, nível e previsão · API"
         }
       >
         {children}

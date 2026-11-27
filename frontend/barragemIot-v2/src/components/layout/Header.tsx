@@ -65,7 +65,7 @@ export default function Header({
           title={
             liveStatus === "disabled"
               ? sourceLabel
-              : "Conexão do navegador com o backend. Não confirma o estado do hardware. Percentual, previsão e alertas continuam demonstrativos."
+              : "Conexão do navegador com o backend. Leituras, nível e previsão usam a API; a lista de eventos permanece demonstrativa. Não confirma o estado do hardware."
           }
           color="info"
           variant="outlined"

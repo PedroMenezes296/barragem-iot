@@ -219,7 +219,7 @@
             "description": "Limites ou dispositivo inválidos."
           }
         },
-        "summary": "Salvar referência e limites; exige seca < atenção < inundação <= distanciaFundoCm - 2",
+        "summary": "Salvar calibração de 100% e limites percentuais; exige 0 <= seca < atenção < inundação <= 100%",
         "tags": [
           "Alertas"
         ]
@@ -255,6 +255,31 @@
         "summary": "Avaliar a última leitura recebida do dispositivo configurado; expira após 30 segundos",
         "tags": [
           "Alertas"
+        ]
+      }
+    },
+    "/meteorologia/previsao": {
+      "get": {
+        "operationId": "MeteorologiaController_getForecast",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Localização não configurada ou previsão temporariamente indisponível."
+          }
+        },
+        "summary": "Previsão de precipitação para hoje e os próximos seis dias; consulta atualizada a cada 15 minutos e na mudança do dia local.",
+        "tags": [
+          "Meteorologia"
         ]
       }
     }
@@ -434,6 +459,30 @@
       "AlarmConfigDto": {
         "type": "object",
         "properties": {
+          "versao": {
+            "type": "number",
+            "enum": [
+              1,
+              2
+            ],
+            "description": "1: configuração legada em cm, pendente de calibração; 2: limites percentuais."
+          },
+          "alturaCheioCm": {
+            "type": "number",
+            "nullable": true
+          },
+          "secaPct": {
+            "type": "number",
+            "default": 20
+          },
+          "atencaoPct": {
+            "type": "number",
+            "default": 80
+          },
+          "inundacaoPct": {
+            "type": "number",
+            "default": 95
+          },
           "idDispositivo": {
             "type": "string"
           },
@@ -446,15 +495,21 @@
           },
           "secaCm": {
             "type": "number",
-            "nullable": true
+            "nullable": true,
+            "deprecated": true,
+            "description": "Somente na configuração legada V1, para conversão explícita."
           },
           "atencaoCm": {
             "type": "number",
-            "nullable": true
+            "nullable": true,
+            "deprecated": true,
+            "description": "Somente na configuração legada V1, para conversão explícita."
           },
           "inundacaoCm": {
             "type": "number",
-            "nullable": true
+            "nullable": true,
+            "deprecated": true,
+            "description": "Somente na configuração legada V1, para conversão explícita."
           },
           "atualizadoEm": {
             "type": "string",
@@ -469,6 +524,11 @@
           }
         },
         "required": [
+          "versao",
+          "alturaCheioCm",
+          "secaPct",
+          "atencaoPct",
+          "inundacaoPct",
           "idDispositivo",
           "ativo",
           "distanciaFundoCm",
@@ -498,29 +558,42 @@
             "example": 5.75,
             "description": "Distância sensor–fundo com reservatório vazio. O máximo mensurável é esta referência menos 2 cm."
           },
-          "secaCm": {
+          "secaPct": {
             "type": "number",
             "minimum": 0,
-            "description": "Altura da água; alarme quando nível <= secaCm. Máximo: distanciaFundoCm - 2."
+            "maximum": 100,
+            "default": 20,
+            "description": "Percentual de seca: alarme entre zero e secaPct, inclusive. Padrão: 20%."
           },
-          "atencaoCm": {
+          "atencaoPct": {
             "type": "number",
             "minimum": 0,
-            "description": "Altura da água; atenção quando nível >= atencaoCm e < inundacaoCm. Máximo: distanciaFundoCm - 2."
+            "maximum": 100,
+            "default": 80,
+            "description": "Percentual de atenção: >= atencaoPct e < inundacaoPct. Padrão: 80%."
           },
-          "inundacaoCm": {
+          "inundacaoPct": {
             "type": "number",
             "minimum": 0,
-            "description": "Altura da água; alarme quando nível >= inundacaoCm. Máximo: distanciaFundoCm - 2."
+            "maximum": 100,
+            "default": 95,
+            "description": "Percentual de inundação: alarme quando >= inundacaoPct. Padrão: 95%."
+          },
+          "alturaCheioCm": {
+            "type": "number",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "description": "Altura da água em 100%, independente do limite de inundação. Máximo: distanciaFundoCm - 2."
           }
         },
         "required": [
           "idDispositivo",
           "ativo",
           "distanciaFundoCm",
-          "secaCm",
-          "atencaoCm",
-          "inundacaoCm"
+          "secaPct",
+          "atencaoPct",
+          "inundacaoPct",
+          "alturaCheioCm"
         ]
       },
       "AlarmStatusDto": {
@@ -552,7 +625,7 @@
           "percentualNivelPct": {
             "type": "number",
             "nullable": true,
-            "description": "Percentual da altura: nivelCm / inundacaoCm * 100, sem limitar a 100%. Não representa volume nem confirmação do alarme físico."
+            "description": "Percentual da altura: nivelCm / alturaCheioCm * 100, sem limitar a 100%. Disponível mesmo com alarmes desativados; null sem calibração ou leitura válida. Não representa volume nem confirmação do alarme físico."
           },
           "idLeitura": {
             "type": "string",
@@ -572,6 +645,62 @@
           "percentualNivelPct",
           "idLeitura",
           "recebidoEm"
+        ]
+      },
+      "ForecastDayDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "string",
+            "example": "2026-11-25",
+            "description": "Dia local da previsão (YYYY-MM-DD)."
+          },
+          "precipitacaoMm": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "description": "Precipitação total prevista em mm; null indica dado ausente."
+          }
+        },
+        "required": [
+          "data",
+          "precipitacaoMm"
+        ]
+      },
+      "ForecastResponseDto": {
+        "type": "object",
+        "properties": {
+          "fonte": {
+            "type": "string",
+            "example": "Open-Meteo"
+          },
+          "localidade": {
+            "type": "string",
+            "example": "Local do reservatório"
+          },
+          "fusoHorario": {
+            "type": "string",
+            "example": "America/Sao_Paulo"
+          },
+          "consultadoEm": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Horário em que a previsão foi consultada no provedor."
+          },
+          "dias": {
+            "description": "Hoje e os próximos seis dias, no fuso configurado.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ForecastDayDto"
+            }
+          }
+        },
+        "required": [
+          "fonte",
+          "localidade",
+          "fusoHorario",
+          "consultadoEm",
+          "dias"
         ]
       }
     }

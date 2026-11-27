@@ -8,26 +8,29 @@ export function maximumLevel(reference: number): number {
   return Number((reference - MIN_SENSOR_DISTANCE_CM).toFixed(2));
 }
 
-// Percentual da altura, não do volume; inundação define 100%.
+// Percentual da altura, não do volume; referência de cheio independente dos alarmes.
 export function calculatePercentage(
   level: number | null,
-  floodLevel: number | null,
+  fullLevel: number | null,
 ): number | null {
   if (
     level === null ||
-    floodLevel === null ||
+    fullLevel === null ||
     !Number.isFinite(level) ||
-    !Number.isFinite(floodLevel) ||
+    !Number.isFinite(fullLevel) ||
     level < 0 ||
-    floodLevel <= 0
-  ) return null;
+    fullLevel <= 0
+  )
+    return null;
   const levelHundredths = Math.round(level * 100);
-  const floodHundredths = Math.round(floodLevel * 100);
+  const floodHundredths = Math.round(fullLevel * 100);
   if (floodHundredths <= 0) return null;
   // Mesma aritmética inteira da placa, inclusive nas metades decimais.
-  return Math.floor(
-    (levelHundredths * 10_000 + floodHundredths / 2) / floodHundredths,
-  ) / 100;
+  return (
+    Math.floor(
+      (levelHundredths * 10_000 + floodHundredths / 2) / floodHundredths,
+    ) / 100
+  );
 }
 
 export function calculateLevel(

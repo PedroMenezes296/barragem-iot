@@ -2,7 +2,9 @@ export interface Reading {
   readingId?: string;
   id: string;
   deviceId: string;
+  // Em modo API, a linha do tempo usa o recebimento no servidor.
   timestamp: string;
+  rtcTimestamp?: string;
   distanceCm: number | null;
   ultrasonicLevelCm: number | null;
   resistiveLevelCm: number | null;
@@ -15,7 +17,15 @@ export interface ReadingData {
 }
 export interface ForecastDay {
   date: string;
-  precipitationMm: number;
+  precipitationMm: number | null;
+}
+export interface ForecastData {
+  source: "api" | "mock";
+  days: ForecastDay[];
+  location: string;
+  timezone: string;
+  fetchedAt: string | null;
+  error: string | null;
 }
 export type AlertSeverity = "info" | "warning" | "critical";
 export interface MonitoringAlert {

@@ -5,11 +5,15 @@ export function toReading(dto: LeituraResponseDto): Reading {
   if (!Number.isFinite(Date.parse(dto.timestampRtc))) {
     throw new Error("Horário de leitura inválido retornado pela API.");
   }
+  if (!Number.isFinite(Date.parse(dto.recebidoEm))) {
+    throw new Error("Horário de recebimento inválido retornado pela API.");
+  }
   return {
     id: dto.id,
     readingId: dto.idLeitura,
     deviceId: dto.idDispositivo,
-    timestamp: dto.timestampRtc,
+    timestamp: dto.recebidoEm,
+    rtcTimestamp: dto.timestampRtc,
     distanceCm: dto.distanciaCm,
     ultrasonicLevelCm: dto.nivelUltrassonicoCm,
     resistiveLevelCm: dto.nivelResistivoCm,

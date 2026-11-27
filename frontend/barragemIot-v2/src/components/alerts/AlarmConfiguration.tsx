@@ -29,12 +29,27 @@ export default function AlarmConfiguration() {
         initialValues={{
           deviceId: config?.idDispositivo ?? "arduino-mega-01",
           reference: config?.distanciaFundoCm?.toString() ?? "5,75",
-          dry: config?.secaCm?.toString() ?? "",
-          attention: config?.atencaoCm?.toString() ?? "",
-          flood: config?.inundacaoCm?.toString() ?? "",
+          full: config?.alturaCheioCm?.toString() ?? "",
+          dry: config?.versao === 1 ? "" : (config?.secaPct ?? 20).toString(),
+          attention:
+            config?.versao === 1 ? "" : (config?.atencaoPct ?? 80).toString(),
+          flood:
+            config?.versao === 1 ? "" : (config?.inundacaoPct ?? 95).toString(),
           enabled: config?.ativo ?? false,
         }}
         disabled={unavailable}
+        legacy={
+          config?.versao === 1 &&
+          config.secaCm != null &&
+          config.atencaoCm != null &&
+          config.inundacaoCm != null
+            ? {
+                secaCm: config.secaCm,
+                atencaoCm: config.atencaoCm,
+                inundacaoCm: config.inundacaoCm,
+              }
+            : undefined
+        }
         onSave={async (draft) => {
           const input = parseAlarmDraft(draft);
           const result = await saveAlarmLimits(input);
@@ -61,6 +76,8 @@ export default function AlarmConfiguration() {
                 {status?.nivelCm == null
                   ? "—"
                   : `${status.nivelCm.toLocaleString("pt-BR")} cm`}
+                {status?.percentualNivelPct != null &&
+                  ` · ${status.percentualNivelPct.toLocaleString("pt-BR")}%`}
               </Typography>
             </Box>
             <Chip
@@ -77,11 +94,12 @@ export default function AlarmConfiguration() {
             />
           </Stack>
           <Typography variant="body2" color="text.secondary">
-            O NestJS calcula o nível e avalia as leituras recebidas. Após carregar
-            o firmware atualizado, o Arduino também calcula localmente e controla
-            o buzzer/relé, mesmo sem conexão, usando os últimos limites salvos na
-            EEPROM. Ele consulta a configuração a cada 10 segundos quando houver
-            conexão. O estado acima não confirma o acionamento físico.
+            O NestJS calcula o nível e avalia as leituras recebidas. Após
+            carregar o firmware atualizado, o Arduino também calcula localmente
+            e controla o buzzer/relé, mesmo sem conexão, usando os últimos
+            limites salvos na EEPROM. Ele consulta a configuração a cada 10
+            segundos quando houver conexão. O estado acima não confirma o
+            acionamento físico.
           </Typography>
           <Typography variant="caption" color="text.secondary">
             Leituras ausentes, inválidas ou recebidas há mais de 30 segundos não

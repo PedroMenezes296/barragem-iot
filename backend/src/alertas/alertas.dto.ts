@@ -47,40 +47,87 @@ export class UpdateAlarmConfigDto {
 
   @ApiProperty({
     minimum: 0,
+    maximum: 100,
+    default: 20,
     description:
-      'Altura da água; alarme quando nível <= secaCm. Máximo: distanciaFundoCm - 2.',
+      'Percentual de seca: alarme entre zero e secaPct, inclusive. Padrão: 20%.',
   })
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
-  secaCm!: number;
+  @Max(100)
+  secaPct: number = 20;
 
   @ApiProperty({
     minimum: 0,
+    maximum: 100,
+    default: 80,
     description:
-      'Altura da água; atenção quando nível >= atencaoCm e < inundacaoCm. Máximo: distanciaFundoCm - 2.',
+      'Percentual de atenção: >= atencaoPct e < inundacaoPct. Padrão: 80%.',
   })
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
-  atencaoCm!: number;
+  @Max(100)
+  atencaoPct: number = 80;
 
   @ApiProperty({
     minimum: 0,
+    maximum: 100,
+    default: 95,
     description:
-      'Altura da água; alarme quando nível >= inundacaoCm. Máximo: distanciaFundoCm - 2.',
+      'Percentual de inundação: alarme quando >= inundacaoPct. Padrão: 95%.',
   })
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
-  inundacaoCm!: number;
+  @Max(100)
+  inundacaoPct: number = 95;
+
+  @ApiProperty({
+    minimum: 0,
+    exclusiveMinimum: true,
+    description:
+      'Altura da água em 100%, independente do limite de inundação. Máximo: distanciaFundoCm - 2.',
+  })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  alturaCheioCm!: number;
 }
 
 export class AlarmConfigDto {
+  @ApiProperty({
+    enum: [1, 2],
+    description:
+      '1: configuração legada em cm, pendente de calibração; 2: limites percentuais.',
+  })
+  versao!: number;
+  @ApiProperty({ type: Number, nullable: true }) alturaCheioCm!: number | null;
+  @ApiProperty({ default: 20 }) secaPct!: number;
+  @ApiProperty({ default: 80 }) atencaoPct!: number;
+  @ApiProperty({ default: 95 }) inundacaoPct!: number;
   @ApiProperty() idDispositivo!: string;
   @ApiProperty() ativo!: boolean;
   @ApiProperty({ type: Number, nullable: true })
   distanciaFundoCm!: number | null;
-  @ApiProperty({ type: Number, nullable: true }) secaCm!: number | null;
-  @ApiProperty({ type: Number, nullable: true }) atencaoCm!: number | null;
-  @ApiProperty({ type: Number, nullable: true }) inundacaoCm!: number | null;
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    deprecated: true,
+    description: 'Somente na configuração legada V1, para conversão explícita.',
+  })
+  secaCm!: number | null;
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    deprecated: true,
+    description: 'Somente na configuração legada V1, para conversão explícita.',
+  })
+  atencaoCm!: number | null;
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    deprecated: true,
+    description: 'Somente na configuração legada V1, para conversão explícita.',
+  })
+  inundacaoCm!: number | null;
   @ApiProperty({ type: String, nullable: true, format: 'date-time' })
   atualizadoEm!: string | null;
   @ApiProperty({
@@ -113,7 +160,8 @@ export class AlarmStatusDto {
   @ApiProperty({
     type: Number,
     nullable: true,
-    description: 'Percentual da altura: nivelCm / inundacaoCm * 100, sem limitar a 100%. Não representa volume nem confirmação do alarme físico.',
+    description:
+      'Percentual da altura: nivelCm / alturaCheioCm * 100, sem limitar a 100%. Disponível mesmo com alarmes desativados; null sem calibração ou leitura válida. Não representa volume nem confirmação do alarme físico.',
   })
   percentualNivelPct!: number | null;
   @ApiProperty({ type: String, nullable: true }) idLeitura!: string | null;

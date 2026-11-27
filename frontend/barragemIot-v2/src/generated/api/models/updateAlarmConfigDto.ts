@@ -16,18 +16,26 @@ export interface UpdateAlarmConfigDto {
      */
   distanciaFundoCm: number;
   /**
-     * Altura da água; alarme quando nível <= secaCm. Máximo: distanciaFundoCm - 2.
+     * Percentual de seca: alarme entre zero e secaPct, inclusive. Padrão: 20%.
      * @minimum 0
+     * @maximum 100
      */
-  secaCm: number;
+  secaPct: number;
   /**
-     * Altura da água; atenção quando nível >= atencaoCm e < inundacaoCm. Máximo: distanciaFundoCm - 2.
+     * Percentual de atenção: >= atencaoPct e < inundacaoPct. Padrão: 80%.
      * @minimum 0
+     * @maximum 100
      */
-  atencaoCm: number;
+  atencaoPct: number;
   /**
-     * Altura da água; alarme quando nível >= inundacaoCm. Máximo: distanciaFundoCm - 2.
+     * Percentual de inundação: alarme quando >= inundacaoPct. Padrão: 95%.
      * @minimum 0
+     * @maximum 100
      */
-  inundacaoCm: number;
+  inundacaoPct: number;
+  /**
+     * Altura da água em 100%, independente do limite de inundação. Máximo: distanciaFundoCm - 2.
+     * @exclusiveMinimum 0
+     */
+  alturaCheioCm: number;
 }

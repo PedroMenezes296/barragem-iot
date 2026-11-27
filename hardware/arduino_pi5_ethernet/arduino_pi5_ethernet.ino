@@ -367,14 +367,16 @@ bool montarPayload(char* destino, size_t capacidade) {
   float distancia = 0, umidade = 0, nivelResistivo = 0;
   const bool temDistancia = obterDistanciaMedia(&distancia);
 
-    // Continuamos testando sem os outros sensores
-    const bool temNivelResistivo = false;
-    const bool temUmidade = false;
+  // Sensor resistivo permanece desabilitado ate concluir a calibracao.
+  const bool temNivelResistivo = false;
+  const bool temUmidade = obterUmidade(&umidade);
 
- // SOMENTE PARA TESTE SEM RTC
-// Esta data não representa o horário real da medição.
-  char timestamp[32] = "2026-10-27T00:00:00-03:00";
-  char timestampCompacto[20] = "TESTESEMRTC";
+  char timestamp[32];
+  char timestampCompacto[20];
+  if (!obterTimestampRtc(timestamp, sizeof(timestamp), timestampCompacto, sizeof(timestampCompacto))) {
+    Serial.println(F("Leitura nao enviada: horario do RTC indisponivel."));
+    return false;
+  }
 
   char idLeitura[72];
   gerarIdLeitura(timestampCompacto, idLeitura, sizeof(idLeitura));
@@ -481,16 +483,27 @@ bool aplicarConfiguracaoAlarmes(const char* json) {
   if (*fimAtivo != ',' && *fimAtivo != '}') return false;
   LocalAlarm::Config nova = {};
   nova.enabled = habilitar ? 1 : 0;
-  if (!numeroConfiguracao(json, "distanciaFundoCm", &nova.reference) ||
-      !numeroConfiguracao(json, "secaCm", &nova.dry) ||
+  uint16_t versao = 100;
+  if (valorConfiguracao(json, "versao") && !numeroConfiguracao(json, "versao", &versao)) return false;
+  if (versao != 100 && versao != 200) return false;
+  nova.version = versao == 200 ? 2 : 1;
+  if (!numeroConfiguracao(json, "distanciaFundoCm", &nova.reference)) return false;
+  if (nova.version == 2) {
+    if (!numeroConfiguracao(json, "alturaCheioCm", &nova.full) ||
+        !numeroConfiguracao(json, "secaPct", &nova.dry) ||
+        !numeroConfiguracao(json, "atencaoPct", &nova.attention) ||
+        !numeroConfiguracao(json, "inundacaoPct", &nova.flood)) return false;
+  } else if (!numeroConfiguracao(json, "secaCm", &nova.dry) ||
       !numeroConfiguracao(json, "atencaoCm", &nova.attention) ||
-      !numeroConfiguracao(json, "inundacaoCm", &nova.flood) || !LocalAlarm::valid(nova)) return false;
+      !numeroConfiguracao(json, "inundacaoCm", &nova.flood)) return false;
+  if (!LocalAlarm::valid(nova)) return false;
   if (configuracaoLocalValida && LocalAlarm::equal(nova, configuracaoLocal)) return true;
   if (!armazenamentoAlarmes.save(EEPROM, ID_DISPOSITIVO, nova)) {
     Serial.println(F("Falha ao persistir configuracao na EEPROM; mantendo anterior."));
     return false;
   }
-  if (!configuracaoLocalValida || nova.reference != configuracaoLocal.reference) {
+  if (!configuracaoLocalValida || nova.reference != configuracaoLocal.reference ||
+      nova.full != configuracaoLocal.full || nova.version != configuracaoLocal.version) {
     quantidadeDistancias = 0; // Aguardar amostras sob a nova referência.
   }
   configuracaoLocal = nova;
@@ -672,8 +685,10 @@ void imprimirDiagnostico() {
   if (resultadoLocal.level >= 0) {
     Serial.print(resultadoLocal.level / 100.0f, 2);
     Serial.print(F(" cm | Percentual local: "));
-    Serial.print(resultadoLocal.percentage, 2);
-    Serial.print(F("%"));
+    if (isfinite(resultadoLocal.percentage)) {
+      Serial.print(resultadoLocal.percentage, 2);
+      Serial.print(F("%"));
+    } else Serial.print(F("pendente de calibracao de 100%"));
   } else Serial.print(F("indisponivel"));
   if (falhaLocal) Serial.print(F(" | FALHA de configuracao/sensor"));
   Serial.println();

@@ -6,6 +6,11 @@ import { AlertasService } from '../alertas/alertas.service.js';
 import { calculateLevel } from '../alertas/sensor-level.js';
 
 const config = {
+  versao: 2,
+  alturaCheioCm: 3.5,
+  secaPct: 20,
+  atencaoPct: 80,
+  inundacaoPct: 95,
   idDispositivo: 'test-device',
   ativo: true,
   distanciaFundoCm: 5.75,

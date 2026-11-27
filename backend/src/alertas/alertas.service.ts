@@ -20,18 +20,19 @@ import {
 import { calculatePercentage, maximumLevel } from './sensor-level.js';
 
 export function validateLimits(input: UpdateAlarmConfigDto): void {
-  const errors = validateSync(plainToInstance(UpdateAlarmConfigDto, input), {
+  input = plainToInstance(UpdateAlarmConfigDto, input);
+  const errors = validateSync(input, {
     whitelist: true,
     forbidNonWhitelisted: true,
   });
   if (
     errors.length ||
     input.distanciaFundoCm <= MIN_SENSOR_DISTANCE_CM ||
-    input.inundacaoCm > maximumLevel(input.distanciaFundoCm) ||
-    !(input.secaCm < input.atencaoCm && input.atencaoCm < input.inundacaoCm)
+    input.alturaCheioCm > maximumLevel(input.distanciaFundoCm) ||
+    !(input.secaPct < input.atencaoPct && input.atencaoPct < input.inundacaoPct)
   ) {
     throw new BadRequestException(
-      'Informe referência maior que 2 e até 400 cm, dispositivo válido e 0 <= seca < atenção < inundação <= referência - 2 cm.',
+      'Informe referência maior que 2 e até 400 cm, altura de 100% maior que zero e até referência - 2 cm, e 0 <= seca < atenção < inundação <= 100%.',
     );
   }
 }
@@ -40,23 +41,28 @@ export function classifyLevel(
   level: number,
   config: AlarmConfigDto,
 ): AlarmState {
-  if (
-    !config.ativo ||
-    config.distanciaFundoCm === null ||
-    config.secaCm === null ||
-    config.atencaoCm === null ||
-    config.inundacaoCm === null
-  )
-    return 'desativado';
-  if (level <= config.secaCm) return 'seca';
-  if (level >= config.inundacaoCm) return 'inundacao';
-  if (level >= config.atencaoCm) return 'atencao';
+  if (!config.ativo || config.distanciaFundoCm === null) return 'desativado';
+  const percent = calculatePercentage(level, config.alturaCheioCm);
+  const value = config.versao === 1 ? level : percent;
+  const dry = config.versao === 1 ? config.secaCm : config.secaPct;
+  const attention = config.versao === 1 ? config.atencaoCm : config.atencaoPct;
+  const flood = config.versao === 1 ? config.inundacaoCm : config.inundacaoPct;
+  if (value === null || dry === null || attention === null || flood === null)
+    return 'sem_dados';
+  if (value <= dry) return 'seca';
+  if (value >= flood) return 'inundacao';
+  if (value >= attention) return 'atencao';
   return 'normal';
 }
 
 @Injectable()
 export class AlertasService implements OnModuleInit {
   private config: Pick<AlarmConfigDto, keyof AlarmConfigDto> = {
+    versao: 2,
+    alturaCheioCm: null,
+    secaPct: 20,
+    atencaoPct: 80,
+    inundacaoPct: 95,
     idDispositivo: 'arduino-mega-01',
     ativo: false,
     distanciaFundoCm: null,
@@ -71,6 +77,7 @@ export class AlertasService implements OnModuleInit {
   private referenciaDesde: string | null = null;
   private lastTimestamp = 0;
   private pending: Promise<void> = Promise.resolve();
+  private legacyOriginal: string | null = null;
   private readonly file = resolve(
     process.env.ALARM_CONFIG_FILE ?? '.data/alertas.json',
   );
@@ -89,31 +96,67 @@ export class AlertasService implements OnModuleInit {
       throw error;
     }
     const saved = JSON.parse(raw) as {
-      config: Pick<UpdateAlarmConfigDto, keyof UpdateAlarmConfigDto>;
+      config: UpdateAlarmConfigDto & {
+        versao?: number;
+        secaCm?: number;
+        atencaoCm?: number;
+        inundacaoCm?: number;
+      };
       atualizadoEm: string;
       referenciaDesde?: string;
     };
     if (!Number.isFinite(Date.parse(saved.atualizadoEm)))
       throw new Error('Data da configuração de alarmes inválida.');
-    if (saved.config.distanciaFundoCm == null) {
-      validateLimits({ ...saved.config, distanciaFundoCm: 400 });
+    if (saved.config.versao !== 2) {
+      this.legacyOriginal = raw;
+      if (saved.config.versao !== undefined && saved.config.versao !== 1)
+        throw new Error('Versão da configuração inválida.');
+      const old = saved.config;
+      const reference = old.distanciaFundoCm ?? 400;
+      if (
+        typeof old.ativo !== 'boolean' ||
+        typeof old.idDispositivo !== 'string' ||
+        !/^[a-zA-Z0-9_-]{1,80}$/.test(old.idDispositivo) ||
+        ![reference, old.secaCm, old.atencaoCm, old.inundacaoCm].every(
+          (value) =>
+            typeof value === 'number' &&
+            Number.isFinite(value) &&
+            Math.abs(value * 100 - Math.round(value * 100)) < 0.00001,
+        ) ||
+        reference <= 2 ||
+        reference > 400 ||
+        old.secaCm! < 0 ||
+        !(
+          old.secaCm! < old.atencaoCm! &&
+          old.atencaoCm! < old.inundacaoCm! &&
+          old.inundacaoCm! <= maximumLevel(reference)
+        )
+      )
+        throw new Error('Configuração legada inválida.');
       this.config = {
         ...this.config,
+        versao: 1,
         idDispositivo: saved.config.idDispositivo,
-        secaCm: saved.config.secaCm,
-        atencaoCm: saved.config.atencaoCm,
-        inundacaoCm: saved.config.inundacaoCm,
+        distanciaFundoCm: old.distanciaFundoCm ?? null,
+        secaCm: old.secaCm!,
+        atencaoCm: old.atencaoCm!,
+        inundacaoCm: old.inundacaoCm!,
         atualizadoEm: saved.atualizadoEm,
-        ativo: false,
+        ativo: old.distanciaFundoCm != null && old.ativo,
+        nivelMaximoConfiguravelCm:
+          old.distanciaFundoCm == null ? null : maximumLevel(reference),
       };
-      return;
+    } else {
+      const { versao: _version, ...values } = saved.config;
+      validateLimits(values);
+      this.config = {
+        ...this.config,
+        ...values,
+        versao: 2,
+        atualizadoEm: saved.atualizadoEm,
+        nivelMaximoConfiguravelCm: maximumLevel(saved.config.distanciaFundoCm),
+      };
     }
-    validateLimits(saved.config);
-    this.config = {
-      ...saved.config,
-      atualizadoEm: saved.atualizadoEm,
-      nivelMaximoConfiguravelCm: maximumLevel(saved.config.distanciaFundoCm),
-    };
     this.referenciaDesde = saved.referenciaDesde ?? saved.atualizadoEm;
     if (!Number.isFinite(Date.parse(this.referenciaDesde)))
       throw new Error('Data da referência de nível inválida.');
@@ -152,31 +195,49 @@ export class AlertasService implements OnModuleInit {
   }
 
   update(input: UpdateAlarmConfigDto): Promise<AlarmConfigDto> {
+    input = plainToInstance(UpdateAlarmConfigDto, input);
     validateLimits(input);
     const values = {
+      versao: 2,
       idDispositivo: input.idDispositivo,
       ativo: input.ativo,
       distanciaFundoCm: input.distanciaFundoCm,
-      secaCm: input.secaCm,
-      atencaoCm: input.atencaoCm,
-      inundacaoCm: input.inundacaoCm,
+      alturaCheioCm: input.alturaCheioCm,
+      secaPct: input.secaPct,
+      atencaoPct: input.atencaoPct,
+      inundacaoPct: input.inundacaoPct,
     };
     return this.serialize(async () => {
       const atualizadoEm = this.nextTimestamp().toISOString();
       const changed =
         values.idDispositivo !== this.config.idDispositivo ||
-        values.distanciaFundoCm !== this.config.distanciaFundoCm;
+        values.distanciaFundoCm !== this.config.distanciaFundoCm ||
+        values.alturaCheioCm !== this.config.alturaCheioCm;
       const referenciaDesde = changed ? atualizadoEm : this.referenciaDesde;
       const target = `${this.file}.${randomUUID()}.tmp`;
       await mkdir(dirname(this.file), { recursive: true });
+      if (this.legacyOriginal !== null) {
+        try {
+          await writeFile(`${this.file}.v1.json`, this.legacyOriginal, {
+            encoding: 'utf8',
+            flag: 'wx',
+          });
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+        }
+      }
       await writeFile(
         target,
         JSON.stringify({ config: values, atualizadoEm, referenciaDesde }),
         'utf8',
       );
       await rename(target, this.file);
+      this.legacyOriginal = null;
       this.config = {
         ...values,
+        secaCm: null,
+        atencaoCm: null,
+        inundacaoCm: null,
         atualizadoEm,
         nivelMaximoConfiguravelCm: maximumLevel(values.distanciaFundoCm),
       };
@@ -203,7 +264,6 @@ export class AlertasService implements OnModuleInit {
       recebidoEm: null,
     };
     if (
-      !this.config.ativo ||
       this.config.distanciaFundoCm === null ||
       (idDispositivo !== undefined &&
         idDispositivo !== this.config.idDispositivo)
@@ -240,7 +300,7 @@ export class AlertasService implements OnModuleInit {
       ...info,
       estado,
       nivelCm: level,
-      percentualNivelPct: calculatePercentage(level, this.config.inundacaoCm),
+      percentualNivelPct: calculatePercentage(level, this.config.alturaCheioCm),
       alarmeAtivo: ['seca', 'atencao', 'inundacao'].includes(estado),
     };
   }

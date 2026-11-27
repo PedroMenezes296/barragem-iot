@@ -5,6 +5,7 @@ import { LeiturasModule } from './leituras/leituras.module.js';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { AlertasModule } from './alertas/alertas.module.js';
+import { MeteorologiaModule } from './meteorologia/meteorologia.module.js';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { AlertasModule } from './alertas/alertas.module.js';
     }),
     LeiturasModule,
     AlertasModule,
+    MeteorologiaModule,
     PrismaModule,
   ],
   controllers: [AppController],

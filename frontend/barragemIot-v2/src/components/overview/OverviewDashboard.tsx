@@ -5,12 +5,14 @@ import AccessTimeRounded from "@mui/icons-material/AccessTimeRounded";
 import OpacityRounded from "@mui/icons-material/OpacityRounded";
 import ReservoirCapacityCard from "./ReservoirCapacityCard";
 import WaterLevelChart from "./WaterLevelChart";
-import RainForecastChart from "./RainForecastChart";
+import { Suspense } from "react";
+import RainForecastSection, {
+  RainForecastLoading,
+} from "./RainForecastSection";
 import MetricCard from "./MetricCard";
-import type { ReadingData, ForecastDay, Device } from "@/types/domain";
+import type { ReadingData, Device } from "@/types/domain";
 import { formatDateTime, formatValue } from "@/utils/formatters";
 interface Props extends ReadingData {
-  forecast: ForecastDay[];
   devices: Device[];
   reservoirDemoPct: number;
 }
@@ -18,7 +20,6 @@ export default function OverviewDashboard({
   readings,
   source,
   error,
-  forecast,
   devices,
   reservoirDemoPct,
 }: Props) {
@@ -45,7 +46,7 @@ export default function OverviewDashboard({
         {error ??
           (mock
             ? "Painel em modo de demonstra\u00e7\u00e3o. Leituras, previs\u00f5es e indicadores s\u00e3o simulados e n\u00e3o representam uma avalia\u00e7\u00e3o de seguran\u00e7a."
-            : "Leituras consultadas na API. Percentual, previs\u00e3o e alertas permanecem demonstrativos; n\u00e3o representam uma avalia\u00e7\u00e3o de seguran\u00e7a.")}
+            : "Leituras e nível consultados na API. Previsão meteorológica via Open-Meteo. A lista de eventos permanece demonstrativa.")}
       </Alert>
       <Box
         sx={{
@@ -67,7 +68,9 @@ export default function OverviewDashboard({
           gap: 2.5,
         }}
       >
-        <RainForecastChart forecast={forecast} />
+        <Suspense fallback={<RainForecastLoading />}>
+          <RainForecastSection />
+        </Suspense>
         <Stack spacing={2.5}>
           <MetricCard
             label="Umidade relativa"

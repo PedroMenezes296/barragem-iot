@@ -5,17 +5,37 @@
  * API de recebimento e consulta de leituras dos sensores de monitoramento de barragens. Documenta o comportamento atualmente implementado.
  * OpenAPI spec version: 1.0.0
  */
+import type { AlarmConfigDtoVersao } from './alarmConfigDtoVersao';
 
 export interface AlarmConfigDto {
+  /** 1: configuração legada em cm, pendente de calibração; 2: limites percentuais. */
+  versao: AlarmConfigDtoVersao;
+  /** @nullable */
+  alturaCheioCm: number | null;
+  secaPct: number;
+  atencaoPct: number;
+  inundacaoPct: number;
   idDispositivo: string;
   ativo: boolean;
   /** @nullable */
   distanciaFundoCm: number | null;
-  /** @nullable */
+  /**
+     * Somente na configuração legada V1, para conversão explícita.
+     * @deprecated
+     * @nullable
+     */
   secaCm: number | null;
-  /** @nullable */
+  /**
+     * Somente na configuração legada V1, para conversão explícita.
+     * @deprecated
+     * @nullable
+     */
   atencaoCm: number | null;
-  /** @nullable */
+  /**
+     * Somente na configuração legada V1, para conversão explícita.
+     * @deprecated
+     * @nullable
+     */
   inundacaoCm: number | null;
   /** @nullable */
   atualizadoEm: string | null;
